@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Meeting Overlay</title>
+  <style>
+    :root {
+      --bg: rgba(12, 12, 16, 0.72);
+      --stroke: rgba(255, 255, 255, 0.07);
+      --muted: #a0a0a0;
+      --purple: #a855f7;
+      --radius: 10px;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      color: var(--muted);
+      font-size: 12px;
+      overflow: hidden;
+      /* Important for dynamic resize */
+    }
+
+    #app-container {
+      width: 320px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 6px;
+    }
+
+    .panel {
+      background: var(--bg);
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      overflow: hidden;
+    }
+
+    /* HEADER */
+    .header {
+      -webkit-app-region: drag;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      user-select: none;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-title {
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.9);
+      letter-spacing: 0.3px;
+    }
+
+    .header-badge {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .header-status {
+      -webkit-app-region: no-drag;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+    }
+
+    .dot {
+      color: var(--purple);
+      font-size: 8px;
+      text-shadow: 0 0 6px rgba(168, 85, 247, 0.6);
+    }
+
+    /* AGENDA LIST (PEEK MODE) */
+    .agenda-container {
+      display: none;
+      /* hidden by default */
+      max-height: 300px;
+      overflow-y: auto;
+      padding: 0 10px 8px;
+      border-top: 1px solid var(--stroke);
+      -webkit-app-region: no-drag;
+    }
+
+    .agenda-container.show {
+      display: block;
+    }
+
+    .agenda-container::-webkit-scrollbar {
+      width: 3px;
+    }
+
+    .agenda-container::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+
+    /* ROW */
+    .row {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      padding: 2px 0;
+    }
+
+    .spine {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 14px;
+      margin: -2px 0;
+      padding: 2px 0;
+    }
+
+    .line {
+      flex: 1;
+      width: 1.5px;
+      background: rgba(255, 255, 255, 0.1);
+      min-height: 4px;
+    }
+
+    .row:first-child .spine .line:first-child {
+      visibility: hidden;
+    }
+
+    .row:last-child .spine .line:last-child {
+      visibility: hidden;
+    }
+
+    .circle {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255, 255, 255, 0.25);
+      background: rgba(0, 0, 0, 0.3);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .circle.covered {
+      background: rgba(255, 255, 255, 0.9);
+      border-color: rgba(255, 255, 255, 0.9);
+    }
+
+    .check {
+      font-size: 8px;
+      color: #000;
+      opacity: 0;
+      user-select: none;
+    }
+
+    .circle.covered .check {
+      opacity: 1;
+    }
+
+    .text-zone {
+      flex: 1;
+      padding: 4px 0;
+      cursor: pointer;
+      font-size: 11.5px;
+      line-height: 1.35;
+      color: var(--muted);
+      transition: background 0.1s;
+      border-radius: 4px;
+    }
+
+    .text-zone:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .row.covered .text-zone {
+      color: rgba(255, 255, 255, 0.3);
+    }
+
+    .row.archived .text-zone {
+      color: rgba(255, 255, 255, 0.25);
+      text-decoration: line-through;
+    }
+
+    .row.archived .circle {
+      opacity: 0.3;
+      cursor: default;
+    }
+
+    /* SEPARATOR */
+    .sep {
+      height: 1px;
+      background: var(--stroke);
+      margin: 6px 0;
+    }
+
+    /* FOOTER */
+    .footer {
+      padding: 6px 10px;
+      font-size: 10.5px;
+      color: rgba(255, 255, 255, 0.4);
+      text-align: center;
+      border-top: 1px solid var(--stroke);
+      margin-top: 4px;
+    }
+
+    /* NUDGE TOAST */
+    .nudge-panel {
+      display: none;
+      /* hidden by default */
+      background: rgba(25, 20, 35, 0.9);
+      border: 1px solid var(--purple);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      -webkit-app-region: no-drag;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(168, 85, 247, 0.15);
+      position: relative;
+    }
+
+    .nudge-panel.show {
+      display: block;
+    }
+
+    .nudge-panel.pinned {
+      background: rgba(40, 20, 60, 0.95);
+      border-color: rgba(168, 85, 247, 0.9);
+    }
+
+    .nudge-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--purple);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .nudge-text {
+      font-size: 11.5px;
+      color: #fff;
+      line-height: 1.4;
+    }
+
+    .pin-badge {
+      display: none;
+      background: var(--purple);
+      color: #fff;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 8px;
+    }
+
+    .nudge-panel.pinned .pin-badge {
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app-container">
+
+    <!-- Main Panel -->
+    <div class="panel">
+      <!-- Minimal Header -->
+      <div class="header">
+        <div class="header-left">
+          <span class="header-title">Meeting Agent</span>
+          <span class="header-badge" id="headerBadge">0 rem</span>
+          <span class="header-badge" id="headerTime">00:00</span>
+        </div>
+        <div class="header-status">
+          <span class="dot">●</span> <span>Listening</span>
+        </div>
+      </div>
+
+      <!-- Full List (Peek Mode) -->
+      <div class="agenda-container" id="agendaContainer">
+        <div id="agendaList"></div>
+        <div class="footer" id="footerText">0 agenda questions remaining</div>
+      </div>
+    </div>
+
+    <!-- Nudge Toast -->
+    <div class="nudge-panel" id="nudgePanel">
+      <div class="nudge-header">
+        <span id="nudgeReason">Suggested Question</span>
+        <span class="pin-badge">Pinned</span>
+      </div>
+      <div class="nudge-text" id="nudgeText"></div>
+    </div>
+
+  </div>
+  <script src="./renderer.js"></script>
+</body>
+
+</html>
