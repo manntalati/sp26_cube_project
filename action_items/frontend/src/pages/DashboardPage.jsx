@@ -76,7 +76,7 @@ export default function DashboardPage({ connections, setConnections }) {
                     <div className="welcome-content">
                         <h1>You're all set! 🎉</h1>
                         <p>
-                            MeetingMind is ready to capture your action items, schedule tasks,
+                            Action Items Agent is ready to capture your action items, schedule tasks,
                             and keep your team on track.
                         </p>
                     </div>

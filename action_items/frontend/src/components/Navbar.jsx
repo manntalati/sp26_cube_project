@@ -23,7 +23,7 @@ export default function Navbar() {
                             </defs>
                         </svg>
                     </div>
-                    <span className="navbar-title">MeetingMind</span>
+                    <span className="navbar-title">Action Items Agent</span>
                 </div>
 
                 <div className="navbar-right">
