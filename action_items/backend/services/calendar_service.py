@@ -7,13 +7,14 @@ import datetime
 # Scopes needed for Google Calendar
 SCOPES = ['https://www.googleapis.com/auth/calendar.events']
 
-def get_google_auth_flow():
+def get_google_auth_flow(client_id=None, client_secret=None):
     """
-    Sets up the Google OAuth 2.0 flow using credentials from the environment.
+    Sets up the Google OAuth 2.0 flow.
+    Accepts user-provided client_id/client_secret, falling back to env vars.
     """
-    client_id = os.environ.get('GOOGLE_CLIENT_ID')
-    client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
-    redirect_uri = os.environ.get('GOOGLE_REDIRECT_URI', 'http://localhost:5001/api/auth/google/callback')
+    client_id = client_id or os.environ.get('GOOGLE_CLIENT_ID')
+    client_secret = client_secret or os.environ.get('GOOGLE_CLIENT_SECRET')
+    redirect_uri = os.environ.get('GOOGLE_REDIRECT_URI', 'http://localhost:5002/api/auth/google/callback')
     
     if not client_id or not client_secret:
         return None

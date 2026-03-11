@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import StepIndicator from '../components/StepIndicator';
 import ServiceCard from '../components/ServiceCard';
+import AuthModal from '../components/AuthModal';
 import './ConnectPage.css';
 
 const SERVICES = [
@@ -10,14 +11,15 @@ const SERVICES = [
         name: 'Google Calendar',
         description: 'Sync with your Google Workspace calendar for seamless scheduling via Google OAuth',
         icon: '📅',
+        authType: 'googleOAuth'
     }
 ];
 
 export default function ConnectCalendarPage({ connections, setConnections }) {
     const navigate = useNavigate();
     const location = useLocation();
+    const [modalService, setModalService] = useState(null);
     const [authError, setAuthError] = useState('');
-    const [authorizing, setAuthorizing] = useState(false);
 
     // Check query params for success redirect from backend OAuth callback
     useEffect(() => {
@@ -43,24 +45,9 @@ export default function ConnectCalendarPage({ connections, setConnections }) {
         }
     }, [location.search, navigate, setConnections]);
 
-    const handleConnect = async (service) => {
-        if (service.id === 'google') {
-            setAuthorizing(true);
-            try {
-                const res = await fetch('/api/auth/google');
-                const data = await res.json();
-
-                if (data.auth_url) {
-                    window.location.href = data.auth_url; // Redirect to Google Consent Screen
-                } else {
-                    setAuthError(data.error || 'Failed to initialize Google OAuth');
-                    setAuthorizing(false);
-                }
-            } catch (err) {
-                setAuthError('Network error initializing OAuth');
-                setAuthorizing(false);
-            }
-        }
+    const handleConnect = (service) => {
+        setAuthError('');
+        setModalService(service);
     };
 
     const handleDisconnect = () => {
@@ -71,7 +58,30 @@ export default function ConnectCalendarPage({ connections, setConnections }) {
                 return newConns;
             });
         });
-    }
+    };
+
+    const handleSuccess = async (authData) => {
+        try {
+            const res = await fetch('/api/auth/google', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    client_id: authData.client_id,
+                    client_secret: authData.client_secret
+                })
+            });
+            const data = await res.json();
+
+            if (res.ok && data.auth_url) {
+                // Redirect to Google consent screen
+                window.location.href = data.auth_url;
+            } else {
+                setAuthError(data.error || 'Failed to initialize Google OAuth');
+            }
+        } catch (err) {
+            setAuthError('Network error connecting to backend');
+        }
+    };
 
     const isConnected = !!connections.calendar;
 
@@ -100,7 +110,7 @@ export default function ConnectCalendarPage({ connections, setConnections }) {
                             <ServiceCard
                                 key={service.id}
                                 name={service.name}
-                                description={authorizing ? 'Redirecting to Google...' : service.description}
+                                description={service.description}
                                 icon={<span>{service.icon}</span>}
                                 connected={connections.calendar?.service === service.id}
                                 onConnect={() => handleConnect(service)}
@@ -139,6 +149,17 @@ export default function ConnectCalendarPage({ connections, setConnections }) {
                     </div>
                 </div>
             </div>
+
+            {modalService && (
+                <AuthModal
+                    serviceName={modalService.name}
+                    serviceIcon={<span style={{ fontSize: '1.8rem' }}>{modalService.icon}</span>}
+                    authType={modalService.authType}
+                    error={authError}
+                    onClose={() => setModalService(null)}
+                    onSuccess={handleSuccess}
+                />
+            )}
         </div>
     );
 }
