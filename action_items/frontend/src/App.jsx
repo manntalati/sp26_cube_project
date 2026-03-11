@@ -4,7 +4,9 @@ import Navbar from './components/Navbar';
 import LandingPage from './pages/LandingPage';
 import ConnectTranscriptionPage from './pages/ConnectTranscriptionPage';
 import ConnectCalendarPage from './pages/ConnectCalendarPage';
+import ConnectGeminiPage from './pages/ConnectGeminiPage';
 import DashboardPage from './pages/DashboardPage';
+import ActionItemReviewPage from './pages/ActionItemReviewPage';
 import './index.css';
 
 function App() {
@@ -21,14 +23,23 @@ function App() {
           initialConnections.transcription = {
             service: 'firefly',
             name: 'Fireflies.ai',
-            email: data.fireflies.email || 'Connected User'
+            email: data.fireflies.email || 'Connected User',
+            connected: true,
           };
         }
         if (data.calendar?.connected) {
           initialConnections.calendar = {
             service: 'google',
             name: 'Google Calendar',
-            email: data.calendar.email || 'Google User'
+            email: data.calendar.email || 'Google User',
+            connected: true,
+          };
+        }
+        if (data.gemini?.connected) {
+          initialConnections.gemini = {
+            service: 'gemini',
+            name: 'Gemini AI',
+            connected: true,
           };
         }
         setConnections(initialConnections);
@@ -43,7 +54,7 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Navbar />
+      <Navbar connections={connections} setConnections={setConnections} />
       <main style={{ flex: 1 }}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
@@ -66,6 +77,15 @@ function App() {
             }
           />
           <Route
+            path="/connect/gemini"
+            element={
+              <ConnectGeminiPage
+                connections={connections}
+                setConnections={setConnections}
+              />
+            }
+          />
+          <Route
             path="/dashboard"
             element={
               <DashboardPage
@@ -73,6 +93,10 @@ function App() {
                 setConnections={setConnections}
               />
             }
+          />
+          <Route
+            path="/review/:transcriptId"
+            element={<ActionItemReviewPage connections={connections} />}
           />
         </Routes>
       </main>

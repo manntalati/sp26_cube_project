@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, session, redirect, url_for
 from services.fireflies_service import validate_api_key
 from services.calendar_service import get_google_auth_flow
+from services.gemini_service import validate_gemini_key
 import os
 import json
 
@@ -10,8 +11,14 @@ auth_bp = Blueprint('auth', __name__)
 # In a real app this would be a database based on a user ID.
 CONNECTED_ACCOUNTS = {
     "fireflies": None,  # Will store {"email": "...", "name": "...", "api_key": "..."}
-    "calendar": None    # Will store {"email": "...", "credentials": {...}}
+    "calendar": None,   # Will store {"email": "...", "credentials": {...}}
+    "gemini": None       # Will store {"api_key": "..."}
 }
+
+# In-memory store for pending OAuth flows, keyed by the state parameter.
+# This avoids relying on Flask sessions, which break when the Vite proxy
+# sets the cookie on port 5173 but Google redirects directly to port 5002.
+PENDING_OAUTH_FLOWS = {}
 
 @auth_bp.route('/status', methods=['GET'])
 def get_status():
@@ -25,6 +32,9 @@ def get_status():
         "calendar": {
             "connected": is_connected("calendar"),
             "email": CONNECTED_ACCOUNTS["calendar"]["email"] if is_connected("calendar") else None
+        },
+        "gemini": {
+            "connected": is_connected("gemini")
         }
     })
 
@@ -63,39 +73,52 @@ def disconnect_fireflies():
 
 
 # Google Calendar OAuth routes
-@auth_bp.route('/google', methods=['GET'])
+@auth_bp.route('/google', methods=['POST'])
 def auth_google():
-    """Initiates the Google OAuth 2.0 flow."""
-    flow = get_google_auth_flow()
+    """Initiates the Google OAuth 2.0 flow with user-provided credentials."""
+    data = request.json or {}
+    client_id = data.get('client_id')
+    client_secret = data.get('client_secret')
+
+    if not client_id or not client_secret:
+        return jsonify({"success": False, "error": "Client ID and Client Secret are required"}), 400
+
+    flow = get_google_auth_flow(client_id=client_id, client_secret=client_secret)
     if not flow:
-        return jsonify({"success": False, "error": "Google Client ID/Secret not configured in .env"}), 500
+        return jsonify({"success": False, "error": "Failed to initialize Google OAuth flow"}), 500
         
     # Generate URL for request to Google's OAuth 2.0 server.
-    # Use kwargs to set optional request parameters.
     authorization_url, state = flow.authorization_url(
-        # Enable offline access so that you can refresh an access token without
-        # re-prompting the user for permission. Recommended for web server apps.
         access_type='offline',
-        # Enable incremental authorization. Recommended as a best practice.
         include_granted_scopes='true')
     
-    # Store the state so the callback can verify the auth server response.
-    session['state'] = state
+    # Store credentials keyed by the OAuth state param so the callback
+    # can retrieve them without depending on session cookies.
+    PENDING_OAUTH_FLOWS[state] = {
+        'client_id': client_id,
+        'client_secret': client_secret
+    }
     
-    # We return the URL rather than redirecting directly, because the frontend
-    # might be making a fetch/xhr request rather than a direct navigation.
     return jsonify({"auth_url": authorization_url})
 
 
 @auth_bp.route('/google/callback', methods=['GET'])
 def auth_google_callback():
     """Handles the OAuth 2.0 server response."""
-    state = session.get('state')
+    state = request.args.get('state')
     
-    flow = get_google_auth_flow()
+    # Look up the credentials saved during the initial /google POST
+    pending = PENDING_OAUTH_FLOWS.pop(state, None)
+    if not pending:
+        return "OAuth state not found. Please try connecting again.", 400
+    
+    client_id = pending['client_id']
+    client_secret = pending['client_secret']
+    
+    flow = get_google_auth_flow(client_id=client_id, client_secret=client_secret)
     if not flow:
         return "Server config error", 500
-        
+
     flow.fetch_token(authorization_response=request.url)
 
     credentials = flow.credentials
@@ -123,4 +146,36 @@ def auth_google_callback():
 @auth_bp.route('/calendar/disconnect', methods=['POST'])
 def disconnect_calendar():
     CONNECTED_ACCOUNTS["calendar"] = None
+    return jsonify({"success": True})
+
+
+# Gemini API key routes
+@auth_bp.route('/gemini', methods=['POST'])
+def connect_gemini():
+    """Validates the Gemini API key and stores it."""
+    data = request.json or {}
+    api_key = data.get('api_key')
+
+    if not api_key:
+        return jsonify({"success": False, "error": "API key is required"}), 400
+
+    success, result = validate_gemini_key(api_key)
+    if success:
+        CONNECTED_ACCOUNTS["gemini"] = {"api_key": api_key}
+        return jsonify({"success": True})
+    else:
+        return jsonify({"success": False, "error": f"Invalid Gemini API key: {result}"}), 401
+
+@auth_bp.route('/gemini/disconnect', methods=['POST'])
+def disconnect_gemini():
+    CONNECTED_ACCOUNTS["gemini"] = None
+    return jsonify({"success": True})
+
+# Global Sign Out route
+@auth_bp.route('/signout', methods=['POST'])
+def global_signout():
+    """Clears all connected accounts."""
+    CONNECTED_ACCOUNTS["fireflies"] = None
+    CONNECTED_ACCOUNTS["calendar"] = None
+    CONNECTED_ACCOUNTS["gemini"] = None
     return jsonify({"success": True})

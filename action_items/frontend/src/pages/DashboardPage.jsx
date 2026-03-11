@@ -7,19 +7,20 @@ export default function DashboardPage({ connections, setConnections }) {
     const navigate = useNavigate();
     const [events, setEvents] = useState([]);
     const [transcripts, setTranscripts] = useState([]);
+    const [analysisById, setAnalysisById] = useState({});
     const [loadingData, setLoadingData] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
             setLoadingData(true);
             try {
-                if (connections.calendar?.connected) {
+                if (connections.calendar) {
                     const calRes = await fetch('/api/calendar/events');
                     const calData = await calRes.json();
                     if (calData.success) setEvents(calData.events);
                 }
 
-                if (connections.transcription?.connected) {
+                if (connections.transcription) {
                     const ffRes = await fetch('/api/fireflies/transcripts');
                     const ffData = await ffRes.json();
                     if (ffData.success) setTranscripts(ffData.transcripts);
@@ -36,6 +37,35 @@ export default function DashboardPage({ connections, setConnections }) {
         }
     }, [connections]);
 
+    useEffect(() => {
+        if (!transcripts.length) return;
+
+        let cancelled = false;
+
+        const refreshStatuses = async () => {
+            try {
+                const pairs = await Promise.all(
+                    transcripts.map(async (t) => {
+                        const res = await fetch(`/api/gemini/status/${t.id}`);
+                        const data = await res.json();
+                        return [t.id, data.analysis];
+                    })
+                );
+                if (cancelled) return;
+                setAnalysisById(Object.fromEntries(pairs));
+            } catch (err) {
+                console.error("Failed to fetch analysis statuses", err);
+            }
+        };
+
+        refreshStatuses();
+        const interval = setInterval(refreshStatuses, 2500);
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, [transcripts]);
+
     const handleDisconnect = (type) => {
         const endpoint = type === 'calendar' ? '/api/auth/calendar/disconnect' : '/api/auth/fireflies/disconnect';
         fetch(endpoint, { method: 'POST' }).then(() => {
@@ -47,9 +77,9 @@ export default function DashboardPage({ connections, setConnections }) {
         });
     };
 
-    const hasAll = connections.transcription && connections.calendar;
+    const hasTranscription = !!connections.transcription;
 
-    if (!hasAll) {
+    if (!hasTranscription) {
         return (
             <div className="dashboard">
                 <div className="bg-mesh" />
@@ -57,7 +87,7 @@ export default function DashboardPage({ connections, setConnections }) {
                     <div className="dashboard-empty animate-fade-in-up">
                         <div className="empty-icon">🔗</div>
                         <h2>Connect your accounts first</h2>
-                        <p>You need to connect both a transcription service and a calendar to get started.</p>
+                        <p>Connect Fireflies so we can pull meeting transcripts and extract action items.</p>
                         <button className="btn-primary" onClick={() => navigate('/connect/transcription')}>
                             Start Setup
                         </button>
@@ -76,7 +106,7 @@ export default function DashboardPage({ connections, setConnections }) {
                     <div className="welcome-content">
                         <h1>You're all set! 🎉</h1>
                         <p>
-                            MeetingMind is ready to capture your action items, schedule tasks,
+                            Action Items Agent is ready to capture your action items, schedule tasks,
                             and keep your team on track.
                         </p>
                     </div>
@@ -93,13 +123,15 @@ export default function DashboardPage({ connections, setConnections }) {
                             connected={true}
                             onDisconnect={() => handleDisconnect('transcription')}
                         />
-                        <ServiceCard
-                            name={connections.calendar.name}
-                            description={`Connected as ${connections.calendar.email}`}
-                            icon={<span>📅</span>}
-                            connected={true}
-                            onDisconnect={() => handleDisconnect('calendar')}
-                        />
+                        {connections.calendar && (
+                            <ServiceCard
+                                name={connections.calendar.name}
+                                description={`Connected as ${connections.calendar.email}`}
+                                icon={<span>📅</span>}
+                                connected={true}
+                                onDisconnect={() => handleDisconnect('calendar')}
+                            />
+                        )}
                     </div>
                 </div>
 
@@ -108,7 +140,7 @@ export default function DashboardPage({ connections, setConnections }) {
                     <h2 className="section-title">Upcoming Meetings</h2>
                     {loadingData ? (
                         <p style={{ color: '#94a3b8' }}>Loading events...</p>
-                    ) : events.length > 0 ? (
+                    ) : connections.calendar && events.length > 0 ? (
                         <div className="placeholder-grid">
                             {events.map((m, i) => (
                                 <div key={i} className="meeting-card">
@@ -128,7 +160,9 @@ export default function DashboardPage({ connections, setConnections }) {
                             ))}
                         </div>
                     ) : (
-                        <p style={{ color: '#94a3b8' }}>No upcoming events found.</p>
+                        <p style={{ color: '#94a3b8' }}>
+                            {connections.calendar ? 'No upcoming events found.' : 'Connect Google Calendar to see upcoming meetings here.'}
+                        </p>
                     )}
                 </div>
 
@@ -142,9 +176,33 @@ export default function DashboardPage({ connections, setConnections }) {
                             {transcripts.map((t, i) => (
                                 <div key={t.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '12px' }}>
                                     <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', marginTop: 0 }}>{t.title}</h3>
-                                    <p style={{ fontSize: '0.9rem', color: '#94a3b8', margin: 0 }}>
-                                        {new Date(parseInt(t.date)).toLocaleString()} • {Math.round(t.duration / 60)} mins
-                                    </p>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+                                        <p style={{ fontSize: '0.9rem', color: '#94a3b8', margin: 0 }}>
+                                            {new Date(parseInt(t.date)).toLocaleString()} • {Math.round(t.duration / 60)} mins
+                                        </p>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                            {analysisById[t.id]?.status && (
+                                                <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+                                                    {analysisById[t.id].status === 'ready'
+                                                        ? 'AI ready'
+                                                        : analysisById[t.id].status === 'processing'
+                                                            ? 'Analyzing…'
+                                                            : analysisById[t.id].status === 'queued'
+                                                                ? 'Queued…'
+                                                                : analysisById[t.id].status === 'error'
+                                                                    ? 'AI error'
+                                                                    : 'Not queued'}
+                                                </span>
+                                            )}
+                                            <button
+                                                className="btn-primary"
+                                                style={{ padding: '0.4rem 1rem', fontSize: '0.9rem', whiteSpace: 'nowrap' }}
+                                                onClick={() => navigate(`/review/${t.id}`)}
+                                            >
+                                                Review
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             ))}
                         </div>

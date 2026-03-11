@@ -68,8 +68,8 @@ export default function ConnectTranscriptionPage({ connections, setConnections }
             <div className="container">
                 <StepIndicator
                     currentStep={1}
-                    totalSteps={2}
-                    labels={['Transcription', 'Calendar']}
+                    totalSteps={3}
+                    labels={['Transcription', 'Calendar', 'AI Analysis']}
                 />
 
                 <div className="connect-content animate-fade-in-up">

@@ -1,0 +1,10 @@
+--- src/pages/DashboardPage.jsx
++++ src/pages/DashboardPage.jsx
+@@ -49,6 +49,7 @@
+     // If it's completely empty but we are technically waiting for it to populate, we shouldn't show the empty state *unless* we know they lack the connections.
+     // Wait, let's just use connections.transcription?.connected && connections.calendar?.connected.
+     const hasAll = connections.transcription && connections.calendar;
++    console.log("hasAll eval: ", hasAll, " length: ", Object.keys(connections).length, " connections: ", connections);
+ 
+     if (!hasAll && Object.keys(connections).length > 0) {
+         return (
