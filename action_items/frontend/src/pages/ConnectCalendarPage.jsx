@@ -91,8 +91,8 @@ export default function ConnectCalendarPage({ connections, setConnections }) {
             <div className="container">
                 <StepIndicator
                     currentStep={2}
-                    totalSteps={2}
-                    labels={['Transcription', 'Calendar']}
+                    totalSteps={3}
+                    labels={['Transcription', 'Calendar', 'AI Analysis']}
                 />
 
                 <div className="connect-content animate-fade-in-up">
@@ -139,9 +139,9 @@ export default function ConnectCalendarPage({ connections, setConnections }) {
                         <button
                             className="btn-primary"
                             disabled={!isConnected}
-                            onClick={() => navigate('/dashboard')}
+                            onClick={() => navigate('/connect/gemini')}
                         >
-                            Finish Setup
+                            Continue
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                                 <path d="M3 7L6 10L13 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>

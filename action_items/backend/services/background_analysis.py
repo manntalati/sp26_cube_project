@@ -12,6 +12,7 @@ from services.gemini_service import analyze_action_items
 class AnalysisJob:
     transcript_id: str
     fireflies_api_key: str
+    gemini_api_key: str
 
 
 # transcript_id -> record
@@ -44,7 +45,7 @@ def get_analysis_record(transcript_id: str) -> Dict[str, Any]:
         return dict(rec)
 
 
-def enqueue_analysis(transcript_id: str, fireflies_api_key: str) -> Tuple[bool, Dict[str, Any]]:
+def enqueue_analysis(transcript_id: str, fireflies_api_key: str, gemini_api_key: str = None) -> Tuple[bool, Dict[str, Any]]:
     """
     Enqueues an analysis job if not already ready/processing/queued.
     Returns (True, record).
@@ -67,7 +68,7 @@ def enqueue_analysis(transcript_id: str, fireflies_api_key: str) -> Tuple[bool, 
             "updated_at_ms": _now_ms(),
         }
 
-    _queue.put(AnalysisJob(transcript_id=transcript_id, fireflies_api_key=fireflies_api_key))
+    _queue.put(AnalysisJob(transcript_id=transcript_id, fireflies_api_key=fireflies_api_key, gemini_api_key=gemini_api_key or ""))
     return True, get_analysis_record(transcript_id)
 
 
@@ -98,7 +99,7 @@ def _worker_loop() -> None:
         transcript_text = ff_result.get("transcript_text", "")
         action_items = ff_result.get("action_items", [])
 
-        ok, gemini_result = analyze_action_items(transcript_text, action_items)
+        ok, gemini_result = analyze_action_items(transcript_text, action_items, api_key=job.gemini_api_key or None)
         if not ok:
             _set_record(transcript_id, status="error", error=f"Gemini analysis failed: {gemini_result}", items=None)
             _queue.task_done()

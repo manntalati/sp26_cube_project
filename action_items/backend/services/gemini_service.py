@@ -10,14 +10,28 @@ if os.path.exists(env_path):
 else:
     load_dotenv()
 
-def _get_client():
-    api_key = os.environ.get("GEMINI_API_KEY")
+def _get_client(api_key: str = None):
+    api_key = api_key or os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY not set in environment")
     return genai.Client(api_key=api_key)
 
 
-def analyze_action_items(transcript_text: str, raw_action_items: list[str]) -> tuple[bool, any]:
+def validate_gemini_key(api_key: str) -> tuple[bool, str]:
+    """
+    Validates a Gemini API key by making a lightweight list-models call.
+    Returns (True, "ok") on success, (False, error_message) on failure.
+    """
+    try:
+        client = genai.Client(api_key=api_key)
+        # A lightweight call to verify the key works
+        client.models.get(model='gemini-2.5-flash')
+        return True, "ok"
+    except Exception as e:
+        return False, str(e)
+
+
+def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_key: str = None) -> tuple[bool, any]:
     """
     Sends the meeting transcript and Fireflies-extracted action items to Gemini.
 
@@ -34,7 +48,7 @@ def analyze_action_items(transcript_text: str, raw_action_items: list[str]) -> t
         task_status  - "Not Started" | "In Progress" | "Completed" | null
     """
     try:
-        client = _get_client()
+        client = _get_client(api_key=api_key)
     except ValueError as e:
 
         return False, str(e)

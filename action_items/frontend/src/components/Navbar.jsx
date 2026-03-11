@@ -1,11 +1,24 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import './Navbar.css';
 
-export default function Navbar() {
+export default function Navbar({ connections = {}, setConnections }) {
     const navigate = useNavigate();
     const location = useLocation();
     const isOnboarding = location.pathname.startsWith('/connect');
     const isDashboard = location.pathname === '/dashboard';
+    const hasConnections = Object.keys(connections).length > 0;
+
+    const handleSignOut = async () => {
+        try {
+            await fetch('/api/auth/signout', { method: 'POST' });
+            if (setConnections) {
+                setConnections({});
+            }
+            navigate('/');
+        } catch (err) {
+            console.error('Failed to sign out', err);
+        }
+    };
 
     return (
         <nav className="navbar">
@@ -27,6 +40,11 @@ export default function Navbar() {
                 </div>
 
                 <div className="navbar-right">
+                    {hasConnections && (
+                        <button className="navbar-signout" onClick={handleSignOut}>
+                            Sign Out
+                        </button>
+                    )}
                     {isDashboard && (
                         <div className="navbar-avatar">
                             <span>U</span>

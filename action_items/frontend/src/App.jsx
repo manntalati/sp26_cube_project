@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import LandingPage from './pages/LandingPage';
 import ConnectTranscriptionPage from './pages/ConnectTranscriptionPage';
 import ConnectCalendarPage from './pages/ConnectCalendarPage';
+import ConnectGeminiPage from './pages/ConnectGeminiPage';
 import DashboardPage from './pages/DashboardPage';
 import ActionItemReviewPage from './pages/ActionItemReviewPage';
 import './index.css';
@@ -34,6 +35,13 @@ function App() {
             connected: true,
           };
         }
+        if (data.gemini?.connected) {
+          initialConnections.gemini = {
+            service: 'gemini',
+            name: 'Gemini AI',
+            connected: true,
+          };
+        }
         setConnections(initialConnections);
       })
       .catch((err) => console.error("Failed to load status", err))
@@ -46,7 +54,7 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Navbar />
+      <Navbar connections={connections} setConnections={setConnections} />
       <main style={{ flex: 1 }}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
@@ -63,6 +71,15 @@ function App() {
             path="/connect/calendar"
             element={
               <ConnectCalendarPage
+                connections={connections}
+                setConnections={setConnections}
+              />
+            }
+          />
+          <Route
+            path="/connect/gemini"
+            element={
+              <ConnectGeminiPage
                 connections={connections}
                 setConnections={setConnections}
               />

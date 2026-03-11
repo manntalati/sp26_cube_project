@@ -25,6 +25,8 @@ def enqueue():
     """
     if not is_connected("fireflies"):
         return jsonify({"success": False, "error": "Fireflies account not connected"}), 401
+    if not is_connected("gemini"):
+        return jsonify({"success": False, "error": "Gemini API key not connected"}), 401
 
     data = request.json or {}
     transcript_id = data.get("transcript_id")
@@ -32,7 +34,8 @@ def enqueue():
         return jsonify({"success": False, "error": "transcript_id is required"}), 400
 
     api_key = CONNECTED_ACCOUNTS["fireflies"]["api_key"]
-    ok, rec = enqueue_analysis(transcript_id, api_key)
+    gemini_key = CONNECTED_ACCOUNTS["gemini"]["api_key"]
+    ok, rec = enqueue_analysis(transcript_id, api_key, gemini_key)
     if not ok:
         return jsonify({"success": False, "error": rec.get("error", "Failed to enqueue")}), 400
 
@@ -51,6 +54,8 @@ def analyze_transcript():
     """
     if not is_connected("fireflies"):
         return jsonify({"success": False, "error": "Fireflies account not connected"}), 401
+    if not is_connected("gemini"):
+        return jsonify({"success": False, "error": "Gemini API key not connected"}), 401
 
     data = request.json or {}
     transcript_id = data.get("transcript_id")
@@ -63,6 +68,7 @@ def analyze_transcript():
         return jsonify({"success": True, "items": cached["items"], "cached": True})
 
     api_key = CONNECTED_ACCOUNTS["fireflies"]["api_key"]
+    gemini_key = CONNECTED_ACCOUNTS["gemini"]["api_key"]
 
     # Step 1 — fetch Fireflies data
     ok, ff_result = get_transcript_full(api_key, transcript_id)
@@ -73,7 +79,7 @@ def analyze_transcript():
     action_items = ff_result.get("action_items", [])
 
     # Step 2 — call Gemini
-    ok, gemini_result = analyze_action_items(transcript_text, action_items)
+    ok, gemini_result = analyze_action_items(transcript_text, action_items, api_key=gemini_key)
     if not ok:
         return jsonify({"success": False, "error": f"Gemini analysis failed: {gemini_result}"}), 500
 
