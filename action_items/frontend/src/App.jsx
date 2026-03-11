@@ -5,6 +5,7 @@ import LandingPage from './pages/LandingPage';
 import ConnectTranscriptionPage from './pages/ConnectTranscriptionPage';
 import ConnectCalendarPage from './pages/ConnectCalendarPage';
 import DashboardPage from './pages/DashboardPage';
+import ActionItemReviewPage from './pages/ActionItemReviewPage';
 import './index.css';
 
 function App() {
@@ -21,14 +22,16 @@ function App() {
           initialConnections.transcription = {
             service: 'firefly',
             name: 'Fireflies.ai',
-            email: data.fireflies.email || 'Connected User'
+            email: data.fireflies.email || 'Connected User',
+            connected: true,
           };
         }
         if (data.calendar?.connected) {
           initialConnections.calendar = {
             service: 'google',
             name: 'Google Calendar',
-            email: data.calendar.email || 'Google User'
+            email: data.calendar.email || 'Google User',
+            connected: true,
           };
         }
         setConnections(initialConnections);
@@ -73,6 +76,10 @@ function App() {
                 setConnections={setConnections}
               />
             }
+          />
+          <Route
+            path="/review/:transcriptId"
+            element={<ActionItemReviewPage connections={connections} />}
           />
         </Routes>
       </main>

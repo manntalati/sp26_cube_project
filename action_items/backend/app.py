@@ -12,6 +12,8 @@ load_dotenv()
 from routes.auth import auth_bp
 from routes.fireflies import fireflies_bp
 from routes.calendar_api import calendar_bp
+from routes.gemini import gemini_bp
+from services.background_analysis import start_background_worker
 
 app = Flask(__name__)
 # Secret key for session management (used for OAuth state)
@@ -24,6 +26,11 @@ CORS(app, supports_credentials=True, origins=["http://localhost:5173", "http://1
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(fireflies_bp, url_prefix='/api/fireflies')
 app.register_blueprint(calendar_bp, url_prefix='/api/calendar')
+app.register_blueprint(gemini_bp, url_prefix='/api/gemini')
+
+# Start background analysis worker (avoid double-start in debug reloader)
+if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+    start_background_worker()
 
 @app.route('/api/health')
 def health_check():
