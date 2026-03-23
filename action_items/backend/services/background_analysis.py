@@ -45,9 +45,10 @@ def get_analysis_record(transcript_id: str) -> Dict[str, Any]:
         return dict(rec)
 
 
-def enqueue_analysis(transcript_id: str, fireflies_api_key: str, gemini_api_key: str = None) -> Tuple[bool, Dict[str, Any]]:
+def enqueue_analysis(transcript_id: str, fireflies_api_key: str, gemini_api_key: str = None, force: bool = False) -> Tuple[bool, Dict[str, Any]]:
     """
     Enqueues an analysis job if not already ready/processing/queued.
+    If force=True, re-enqueues even if 'ready'.
     Returns (True, record).
     """
     if not transcript_id:
@@ -57,8 +58,10 @@ def enqueue_analysis(transcript_id: str, fireflies_api_key: str, gemini_api_key:
 
     with _lock:
         rec = ANALYSIS_STORE.get(transcript_id)
-        if rec and rec.get("status") in {"queued", "processing", "ready"}:
-            return True, dict(rec)
+        if rec:
+            status = rec.get("status")
+            if status in {"queued", "processing"} or (status == "ready" and not force):
+                return True, dict(rec)
 
         ANALYSIS_STORE[transcript_id] = {
             "transcript_id": transcript_id,
@@ -80,6 +83,19 @@ def _set_record(transcript_id: str, **updates: Any) -> None:
         ANALYSIS_STORE[transcript_id] = rec
 
 
+def update_analysis_record(transcript_id: str, items: list) -> bool:
+    """
+    Updates the items list for an existing analysis record.
+    Returns True if updated, False if record doesn't exist.
+    """
+    with _lock:
+        if transcript_id not in ANALYSIS_STORE:
+            return False
+        ANALYSIS_STORE[transcript_id]["items"] = items
+        ANALYSIS_STORE[transcript_id]["updated_at_ms"] = _now_ms()
+        return True
+
+
 def _worker_loop() -> None:
     while True:
         try:
@@ -88,25 +104,30 @@ def _worker_loop() -> None:
             continue
 
         transcript_id = job.transcript_id
-        _set_record(transcript_id, status="processing", error=None)
+        
+        try:
+            _set_record(transcript_id, status="processing", error=None)
 
-        ok, ff_result = get_transcript_full(job.fireflies_api_key, transcript_id)
-        if not ok:
-            _set_record(transcript_id, status="error", error=f"Fireflies fetch failed: {ff_result}", items=None)
+            ok, ff_result = get_transcript_full(job.fireflies_api_key, transcript_id)
+            if not ok:
+                _set_record(transcript_id, status="error", error=f"Fireflies fetch failed: {ff_result}", items=None)
+                _queue.task_done()
+                continue
+
+            transcript_text = ff_result.get("transcript_text", "")
+            action_items = ff_result.get("action_items", [])
+
+            ok, gemini_result = analyze_action_items(transcript_text, action_items, api_key=job.gemini_api_key or None)
+            if not ok:
+                _set_record(transcript_id, status="error", error=f"Gemini analysis failed: {gemini_result}", items=None)
+                _queue.task_done()
+                continue
+
+            _set_record(transcript_id, status="ready", items=gemini_result, error=None)
             _queue.task_done()
-            continue
-
-        transcript_text = ff_result.get("transcript_text", "")
-        action_items = ff_result.get("action_items", [])
-
-        ok, gemini_result = analyze_action_items(transcript_text, action_items, api_key=job.gemini_api_key or None)
-        if not ok:
-            _set_record(transcript_id, status="error", error=f"Gemini analysis failed: {gemini_result}", items=None)
+        except Exception as e:
+            _set_record(transcript_id, status="error", error=f"Unhandled internal error: {str(e)}", items=None)
             _queue.task_done()
-            continue
-
-        _set_record(transcript_id, status="ready", items=gemini_result, error=None)
-        _queue.task_done()
 
 
 def start_background_worker() -> None:

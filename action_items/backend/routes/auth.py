@@ -4,6 +4,43 @@ from services.calendar_service import get_google_auth_flow
 from services.gemini_service import validate_gemini_key
 import os
 import json
+import tempfile
+import fcntl
+
+# Path to the file used to persist pending OAuth flows across Werkzeug processes
+_OAUTH_STATE_FILE = os.path.join(tempfile.gettempdir(), 'action_item_agent_oauth_flows.json')
+
+def _load_oauth_flows():
+    """Read persisted OAuth flow state from disk."""
+    try:
+        with open(_OAUTH_STATE_FILE, 'r') as f:
+            fcntl.flock(f, fcntl.LOCK_SH)
+            data = json.load(f)
+            fcntl.flock(f, fcntl.LOCK_UN)
+            return data
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def _save_oauth_flows(flows):
+    """Write OAuth flow state to disk atomically."""
+    with open(_OAUTH_STATE_FILE, 'w') as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        json.dump(flows, f)
+        fcntl.flock(f, fcntl.LOCK_UN)
+
+def _pop_oauth_flow(state):
+    """Retrieve and remove a pending OAuth flow entry by state key."""
+    flows = _load_oauth_flows()
+    entry = flows.pop(state, None)
+    if entry is not None:
+        _save_oauth_flows(flows)
+    return entry
+
+def _add_oauth_flow(state, data):
+    """Add a new pending OAuth flow entry."""
+    flows = _load_oauth_flows()
+    flows[state] = data
+    _save_oauth_flows(flows)
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -15,10 +52,8 @@ CONNECTED_ACCOUNTS = {
     "gemini": None       # Will store {"api_key": "..."}
 }
 
-# In-memory store for pending OAuth flows, keyed by the state parameter.
-# This avoids relying on Flask sessions, which break when the Vite proxy
-# sets the cookie on port 5173 but Google redirects directly to port 5002.
-PENDING_OAUTH_FLOWS = {}
+# NOTE: Pending OAuth flows are now persisted to disk (see _load_oauth_flows / _save_oauth_flows)
+# so they survive across Werkzeug's two debug-mode processes and server restarts.
 
 @auth_bp.route('/status', methods=['GET'])
 def get_status():
@@ -53,6 +88,9 @@ def connect_fireflies():
     success, result = validate_api_key(api_key)
     
     if success:
+        # result may be None if Fireflies returned a null user object
+        if not result:
+            return jsonify({"success": False, "error": "API key was accepted but no user data returned. Please check your Fireflies API key."}), 401
         # Store in our mock database
         CONNECTED_ACCOUNTS["fireflies"] = {
             "api_key": api_key,
@@ -92,12 +130,12 @@ def auth_google():
         access_type='offline',
         include_granted_scopes='true')
     
-    # Store credentials keyed by the OAuth state param so the callback
-    # can retrieve them without depending on session cookies.
-    PENDING_OAUTH_FLOWS[state] = {
+    # Persist credentials keyed by the OAuth state param to disk so the callback
+    # can retrieve them even in a different process (Werkzeug debug reloader).
+    _add_oauth_flow(state, {
         'client_id': client_id,
         'client_secret': client_secret
-    }
+    })
     
     return jsonify({"auth_url": authorization_url})
 
@@ -107,10 +145,10 @@ def auth_google_callback():
     """Handles the OAuth 2.0 server response."""
     state = request.args.get('state')
     
-    # Look up the credentials saved during the initial /google POST
-    pending = PENDING_OAUTH_FLOWS.pop(state, None)
+    # Look up the credentials saved during the initial /google POST (read from disk)
+    pending = _pop_oauth_flow(state) if state else None
     if not pending:
-        return "OAuth state not found. Please try connecting again.", 400
+        return "OAuth state not found. Please try connecting again. (state=" + str(state) + ")", 400
     
     client_id = pending['client_id']
     client_secret = pending['client_secret']
