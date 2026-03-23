@@ -7,6 +7,7 @@ import ConnectCalendarPage from './pages/ConnectCalendarPage';
 import ConnectGeminiPage from './pages/ConnectGeminiPage';
 import DashboardPage from './pages/DashboardPage';
 import ActionItemReviewPage from './pages/ActionItemReviewPage';
+import SettingsPage from './pages/SettingsPage';
 import './index.css';
 
 function App() {
@@ -98,6 +99,7 @@ function App() {
             path="/review/:transcriptId"
             element={<ActionItemReviewPage connections={connections} />}
           />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
     </BrowserRouter>
