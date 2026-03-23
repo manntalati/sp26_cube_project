@@ -41,9 +41,14 @@ export default function Navbar({ connections = {}, setConnections }) {
 
                 <div className="navbar-right">
                     {hasConnections && (
-                        <button className="navbar-signout" onClick={handleSignOut}>
-                            Sign Out
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }} onClick={() => navigate('/settings')}>
+                                ⚙️ Settings
+                            </button>
+                            <button className="navbar-signout" onClick={handleSignOut}>
+                                Sign Out
+                            </button>
+                        </div>
                     )}
                     {isDashboard && (
                         <div className="navbar-avatar">

@@ -137,15 +137,17 @@ export default function DashboardPage({ connections, setConnections }) {
 
                 {/* Upcoming Meetings */}
                 <div className="dashboard-section animate-fade-in-up stagger-2">
-                    <h2 className="section-title">Upcoming Meetings</h2>
+                    <h2 className="section-title">Upcoming Deadlines</h2>
                     {loadingData ? (
-                        <p style={{ color: '#94a3b8' }}>Loading events...</p>
+                        <p className="loading-text" style={{ color: '#94a3b8' }}>Loading upcoming deadlines...</p>
                     ) : connections.calendar && events.length > 0 ? (
                         <div className="placeholder-grid">
                             {events.map((m, i) => (
                                 <div key={i} className="meeting-card">
                                     <div className="meeting-time">
-                                        {new Date(m.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        {m.start.includes('T')
+                                            ? new Date(m.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                            : 'All Day'}
                                     </div>
                                     <div className="meeting-info">
                                         <span className="meeting-title">{m.title}</span>

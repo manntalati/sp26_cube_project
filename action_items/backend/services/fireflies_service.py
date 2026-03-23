@@ -91,11 +91,12 @@ def validate_api_key(api_key):
         
         data = response.json()
         
-        if response.status_code == 200 and "data" in data and "user" in data["data"]:
-            return True, data["data"]["user"]
+        user = (data.get("data") or {}).get("user")
+        if response.status_code == 200 and "data" in data and user is not None:
+            return True, user
         else:
             errors = data.get("errors", [{"message": "Invalid API Key or unauthorized"}])
-            return False, errors[0]["message"]
+            return False, errors[0]["message"] if errors else "Invalid API Key or unauthorized"
             
     except Exception as e:
         return False, str(e)
