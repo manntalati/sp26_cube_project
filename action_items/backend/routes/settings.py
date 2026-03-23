@@ -7,6 +7,7 @@ ALIASES_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 
 
 def load_aliases():
     if not os.path.exists(ALIASES_FILE):
+<<<<<<< HEAD
         return []
     with open(ALIASES_FILE, 'r') as f:
         try:
@@ -17,6 +18,14 @@ def load_aliases():
             return data if isinstance(data, list) else []
         except json.JSONDecodeError:
             return []
+=======
+        return {}
+    with open(ALIASES_FILE, 'r') as f:
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return {}
+>>>>>>> 03f7540674afb827f90eaf7d4f54e5aaa69ff2c0
 
 def save_aliases(aliases):
     os.makedirs(os.path.dirname(ALIASES_FILE), exist_ok=True)
@@ -32,6 +41,7 @@ def get_aliases():
 def update_aliases():
     data = request.json or {}
     aliases = data.get('aliases')
+<<<<<<< HEAD
     if not isinstance(aliases, list):
         return jsonify({"success": False, "error": "Invalid aliases format; expected list of names"}), 400
     
@@ -39,6 +49,10 @@ def update_aliases():
     aliases = [name.strip() for name in aliases if name and isinstance(name, str)]
     # Unique names only
     aliases = sorted(list(set(aliases)))
+=======
+    if not isinstance(aliases, dict):
+        return jsonify({"success": False, "error": "Invalid aliases format; expected dictionary"}), 400
+>>>>>>> 03f7540674afb827f90eaf7d4f54e5aaa69ff2c0
     
     save_aliases(aliases)
     return jsonify({"success": True, "aliases": aliases})

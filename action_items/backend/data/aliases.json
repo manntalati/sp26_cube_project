@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 [
     "Mann",
     "Michael",
@@ -5,3 +6,11 @@
     "Saanvi",
     "Tristan"
 ]
+=======
+{
+    "Crochet": "Krishay",
+    "Mon": "Mann",
+    "Sanvi": "Saanvi",
+    "Adi": "Aadi"
+}
+>>>>>>> 03f7540674afb827f90eaf7d4f54e5aaa69ff2c0
