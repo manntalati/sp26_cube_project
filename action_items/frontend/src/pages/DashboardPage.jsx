@@ -142,24 +142,27 @@ export default function DashboardPage({ connections, setConnections }) {
                         <p className="loading-text" style={{ color: '#94a3b8' }}>Loading upcoming deadlines...</p>
                     ) : connections.calendar && events.length > 0 ? (
                         <div className="placeholder-grid">
-                            {events.map((m, i) => (
-                                <div key={i} className="meeting-card">
-                                    <div className="meeting-time">
-                                        {m.start.includes('T')
-                                            ? new Date(m.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                                            : 'All Day'}
-                                    </div>
-                                    <div className="meeting-info">
-                                        <span className="meeting-title">{m.title}</span>
-                                        <span className="meeting-participants" style={{ fontSize: '0.8rem' }}>
-                                            {new Date(m.start).toLocaleDateString()}
-                                        </span>
-                                    </div>
-                                    <div className="meeting-status">
-                                        <a href={m.link} target="_blank" rel="noreferrer" className="status-badge upcoming" style={{ textDecoration: 'none' }}>View</a>
-                                    </div>
-                                </div>
-                            ))}
+                                {events.map((m, i) => {
+                                    const eventDate = new Date(m.start);
+                                    const dateStr = eventDate.toLocaleDateString();
+                                    const timeStr = m.start.includes('T')
+                                        ? eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                        : '';
+                                    return (
+                                        <div key={i} className="meeting-card">
+                                            <div className="meeting-time">
+                                                {dateStr}
+                                                {timeStr && <><br /><span style={{ fontSize: '0.75rem', opacity: 0.8 }}>{timeStr}</span></>}
+                                            </div>
+                                            <div className="meeting-info">
+                                                <span className="meeting-title">{m.title}</span>
+                                            </div>
+                                            <div className="meeting-status">
+                                                <a href={m.link} target="_blank" rel="noreferrer" className="status-badge upcoming" style={{ textDecoration: 'none' }}>View</a>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                         </div>
                     ) : (
                         <p style={{ color: '#94a3b8' }}>

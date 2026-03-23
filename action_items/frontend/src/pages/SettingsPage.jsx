@@ -4,14 +4,13 @@ import './SettingsPage.css';
 
 function SettingsPage() {
     const navigate = useNavigate();
-    const [aliases, setAliases] = useState({});
+    const [aliases, setAliases] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [saving, setSaving] = useState(false);
 
-    // New alias inputs
-    const [newAliasFrom, setNewAliasFrom] = useState('');
-    const [newAliasTo, setNewAliasTo] = useState('');
+    // New name input
+    const [newName, setNewName] = useState('');
 
     useEffect(() => {
         fetchAliases();
@@ -23,7 +22,7 @@ function SettingsPage() {
             const res = await fetch('/api/settings/aliases');
             const data = await res.json();
             if (data.success) {
-                setAliases(data.aliases || {});
+                setAliases(Array.isArray(data.aliases) ? data.aliases : []);
             } else {
                 setError(data.error);
             }
@@ -46,30 +45,32 @@ function SettingsPage() {
             if (data.success) {
                 setAliases(data.aliases);
             } else {
-                alert("Failed to save aliases: " + data.error);
+                alert("Failed to save names: " + data.error);
             }
         } catch (err) {
-            alert("Error saving aliases: " + err.message);
+            alert("Error saving names: " + err.message);
         } finally {
             setSaving(false);
         }
     };
 
-    const handleAddAlias = (e) => {
+    const handleAddName = (e) => {
         e.preventDefault();
-        const from = newAliasFrom.trim();
-        const to = newAliasTo.trim();
-        if (!from || !to) return;
+        const name = newName.trim();
+        if (!name) return;
 
-        const updated = { ...aliases, [from]: to };
-        setNewAliasFrom('');
-        setNewAliasTo('');
+        if (aliases.includes(name)) {
+            alert("This name is already in the list.");
+            return;
+        }
+
+        const updated = [...aliases, name];
+        setNewName('');
         saveAliasesToServer(updated);
     };
 
-    const handleRemoveAlias = (key) => {
-        const updated = { ...aliases };
-        delete updated[key];
+    const handleRemoveName = (name) => {
+        const updated = aliases.filter(n => n !== name);
         saveAliasesToServer(updated);
     };
 
@@ -87,8 +88,8 @@ function SettingsPage() {
             <main className="container">
                 <div className="settings-section animate-fade-in-up">
                     <div className="section-header">
-                        <h2>Name Alias Mapping</h2>
-                        <p>Define known misspellings or nicknames. Gemini will automatically correct them in future meetings.</p>
+                        <h2>Correct Name List</h2>
+                        <p>Add the correct spelling of names. Gemini will automatically identify misspellings in transcripts and update them to these correct names.</p>
                     </div>
 
                     {loading ? (
@@ -97,52 +98,42 @@ function SettingsPage() {
                         <p className="error-text">{error}</p>
                     ) : (
                         <div className="alias-manager">
-                            <form className="alias-add-form" onSubmit={handleAddAlias}>
-                                <input
-                                    type="text"
-                                    className="edit-field"
-                                    placeholder="Misspelled/Nickname (e.g. Jon)"
-                                    value={newAliasFrom}
-                                    onChange={(e) => setNewAliasFrom(e.target.value)}
-                                    disabled={saving}
-                                />
-                                <span className="alias-arrow">→</span>
+                            <form className="alias-add-form" onSubmit={handleAddName}>
                                 <input
                                     type="text"
                                     className="edit-field"
                                     placeholder="Correct Name (e.g. John Smith)"
-                                    value={newAliasTo}
-                                    onChange={(e) => setNewAliasTo(e.target.value)}
+                                    value={newName}
+                                    onChange={(e) => setNewName(e.target.value)}
                                     disabled={saving}
+                                    style={{ flex: 1 }}
                                 />
-                                <button type="submit" className="btn-primary" disabled={saving || !newAliasFrom.trim() || !newAliasTo.trim()}>
-                                    {saving ? 'Adding...' : 'Add'}
+                                <button type="submit" className="btn-primary" disabled={saving || !newName.trim()}>
+                                    {saving ? 'Adding...' : 'Add Name'}
                                 </button>
                             </form>
 
                             <div className="alias-list">
-                                {Object.keys(aliases).length === 0 ? (
-                                    <p className="empty-text">No name mappings defined yet.</p>
+                                {aliases.length === 0 ? (
+                                    <p className="empty-text">No names added yet.</p>
                                 ) : (
                                     <table className="alias-table">
                                         <thead>
                                             <tr>
-                                                <th>Original (Transcript)</th>
-                                                <th>Replaced With</th>
-                                                <th></th>
+                                                <th>Correct Name</th>
+                                                <th style={{ width: '50px' }}></th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {Object.entries(aliases).map(([key, value]) => (
-                                                <tr key={key}>
-                                                    <td><code>{key}</code></td>
-                                                    <td><strong>{value}</strong></td>
+                                            {aliases.map((name) => (
+                                                <tr key={name}>
+                                                    <td><strong>{name}</strong></td>
                                                     <td className="actions-cell">
                                                         <button
                                                             className="btn-remove"
-                                                            onClick={() => handleRemoveAlias(key)}
+                                                            onClick={() => handleRemoveName(name)}
                                                             disabled={saving}
-                                                            title="Delete Mapping"
+                                                            title="Delete Name"
                                                         >
                                                             ×
                                                         </button>
