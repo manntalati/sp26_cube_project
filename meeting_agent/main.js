@@ -20,7 +20,7 @@ function startFlask() {
 
   flaskProcess = spawn(pythonPath, ['app.py'], {
     cwd: backendDir,
-    env: { ...process.env, PYTHONUNBUFFERED: '1' },
+    env: { ...process.env, PYTHONUNBUFFERED: '1', FLASK_DEBUG: '0' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
 
