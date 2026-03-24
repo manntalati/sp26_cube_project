@@ -1,6 +1,4 @@
-#!/bin/sh
-'''exec' "/Users/michaelgong/Desktop/Action Item Code/sp26_cube_project/action_items/backend/venv/bin/python3" "$0" "$@"
-' '''
+#!/Users/manntalati/Documents/Projects/sp26_cube_project/action_items/backend/venv/bin/python3.12
 # -*- coding: utf-8 -*-
 import re
 import sys

@@ -1,0 +1,13 @@
+{
+  "name": "meeting-agent",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "setup": "cd backend && python3 -m venv venv && venv/bin/pip install -r requirements.txt"
+  },
+  "devDependencies": {
+    "electron": "^40.8.3"
+  }
+}

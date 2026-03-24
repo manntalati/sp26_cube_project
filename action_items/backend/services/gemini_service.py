@@ -61,20 +61,12 @@ def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_
     aliases = load_aliases()
     alias_instruction = ""
     if aliases:
-<<<<<<< HEAD
-        names_list = ", ".join(aliases)
-        alias_instruction = (
-            f"\nIMPORTANT NAME CORRECTION RULES:\n"
-            f"Below is a list of CORRECT person names. If you identify a name in the transcript or existing action items that is a misspelling, nickname, or variation of one of these names, you MUST use the correct name from this list in the 'owner' field.\n"
-            f"Correct Names: {names_list}\n"
-=======
         alias_json = json.dumps(aliases, indent=2)
         alias_instruction = (
             f"\nIMPORTANT NAME MAPPING RULES:\n"
             f"Use the following mapping to correct owner names found in the transcript.\n"
             f"If you see a name matching a key (case-insensitive or partial match), replace it with the exact value.\n"
             f"Mapping Table: {alias_json}\n"
->>>>>>> 03f7540674afb827f90eaf7d4f54e5aaa69ff2c0
         )
 
     prompt = f"""You are an AI assistant that reviews meeting transcripts and action items.

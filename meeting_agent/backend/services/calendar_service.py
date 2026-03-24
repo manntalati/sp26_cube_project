@@ -1,0 +1,158 @@
+import os
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+import datetime
+
+# Scopes needed for Google Calendar
+SCOPES = ['https://www.googleapis.com/auth/calendar.events']
+
+def get_google_auth_flow(client_id=None, client_secret=None):
+    """
+    Sets up the Google OAuth 2.0 flow.
+    Accepts user-provided client_id/client_secret, falling back to env vars.
+    """
+    client_id = client_id or os.environ.get('GOOGLE_CLIENT_ID')
+    client_secret = client_secret or os.environ.get('GOOGLE_CLIENT_SECRET')
+    redirect_uri = os.environ.get('GOOGLE_REDIRECT_URI', 'http://localhost:5002/api/auth/google/callback')
+    
+    if not client_id or not client_secret:
+        return None
+
+    client_config = {
+        "web": {
+            "client_id": client_id,
+            "project_id": "meeting-agent",
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_secret": client_secret,
+            "redirect_uris": [redirect_uri]
+        }
+    }
+
+    flow = Flow.from_client_config(
+        client_config,
+        scopes=SCOPES,
+        redirect_uri=redirect_uri
+    )
+    return flow
+
+
+def list_upcoming_events(credentials_dict, max_results=10):
+    """
+    Lists the next N events on the user's primary calendar.
+    """
+    if not credentials_dict:
+        return False, "No credentials provided"
+        
+    try:
+        creds = Credentials(**credentials_dict)
+        service = build('calendar', 'v3', credentials=creds)
+
+        now = datetime.datetime.utcnow().isoformat() + 'Z'
+        events_result = service.events().list(calendarId='primary', timeMin=now,
+                                              maxResults=max_results, singleEvents=True,
+                                              orderBy='startTime').execute()
+        events = events_result.get('items', [])
+        
+        parsed_events = []
+        for event in events:
+            start = event['start'].get('dateTime', event['start'].get('date'))
+            parsed_events.append({
+                'id': event.get('id'),
+                'title': event.get('summary', 'Untitled Event'),
+                'start': start,
+                'link': event.get('htmlLink')
+            })
+            
+        return True, parsed_events
+    except Exception as e:
+        return False, str(e)
+
+
+def create_event(credentials_dict, summary, description, start_time_iso, end_time_iso):
+    """
+    Creates an event on the user's calendar.
+    start_time_iso / end_time_iso: ISO 8601 strings (datetime or date-only).
+    """
+    if not credentials_dict:
+        return False, "No credentials provided"
+        
+    try:
+        creds = Credentials(**credentials_dict)
+        service = build('calendar', 'v3', credentials=creds)
+        
+        start_payload = {'date': start_time_iso} if len(start_time_iso) <= 10 else {'dateTime': start_time_iso, 'timeZone': 'UTC'}
+        end_payload = {'date': end_time_iso} if len(end_time_iso) <= 10 else {'dateTime': end_time_iso, 'timeZone': 'UTC'}
+        
+        event_body = {
+            'summary': summary,
+            'description': description,
+            'start': start_payload,
+            'end': end_payload,
+            'reminders': {
+                'useDefault': False,
+                'overrides': [
+                    {'method': 'email', 'minutes': 24 * 60},
+                    {'method': 'popup', 'minutes': 10},
+                ],
+            },
+        }
+
+        event = service.events().insert(calendarId='primary', body=event_body).execute()
+        return True, {"link": event.get('htmlLink'), "id": event.get('id')}
+    except Exception as e:
+        return False, str(e)
+
+
+def update_event(credentials_dict, event_id, summary, description, start_time_iso, end_time_iso):
+    """
+    Updates an existing event on the user's calendar.
+    """
+    if not credentials_dict:
+        return False, "No credentials provided"
+        
+    try:
+        creds = Credentials(**credentials_dict)
+        service = build('calendar', 'v3', credentials=creds)
+        
+        start_payload = {'date': start_time_iso} if len(start_time_iso) <= 10 else {'dateTime': start_time_iso, 'timeZone': 'UTC'}
+        end_payload = {'date': end_time_iso} if len(end_time_iso) <= 10 else {'dateTime': end_time_iso, 'timeZone': 'UTC'}
+        
+        event_body = {
+            'summary': summary,
+            'description': description,
+            'start': start_payload,
+            'end': end_payload,
+            'reminders': {
+                'useDefault': False,
+                'overrides': [
+                    {'method': 'email', 'minutes': 24 * 60},
+                    {'method': 'popup', 'minutes': 10},
+                ],
+            },
+        }
+
+        event = service.events().update(calendarId='primary', eventId=event_id, body=event_body).execute()
+        return True, {"link": event.get('htmlLink'), "id": event.get('id')}
+    except Exception as e:
+        return False, str(e)
+
+def delete_event(credentials_dict, event_id):
+    """
+    Deletes an existing event from the user's calendar.
+    """
+    if not credentials_dict:
+        return False, "No credentials provided"
+        
+    try:
+        creds = Credentials(**credentials_dict)
+        service = build('calendar', 'v3', credentials=creds)
+        
+        service.events().delete(calendarId='primary', eventId=event_id).execute()
+        return True, "Deleted successfully"
+    except Exception as e:
+        return False, str(e)
+
+

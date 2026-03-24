@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src http://127.0.0.1:5002">
+  <title>Meeting Agent</title>
+  <style>
+    /* ═══════════════════════════════════════════════════════════════════════════
+       DESIGN TOKENS
+       ═══════════════════════════════════════════════════════════════════════════ */
+    :root {
+      --bg: rgba(12, 12, 16, 0.82);
+      --bg-solid: rgba(18, 18, 24, 0.95);
+      --stroke: rgba(255, 255, 255, 0.07);
+      --stroke-hover: rgba(255, 255, 255, 0.14);
+      --muted: #a0a0a0;
+      --text: rgba(255, 255, 255, 0.88);
+      --text-dim: rgba(255, 255, 255, 0.5);
+      --purple: #a855f7;
+      --purple-dim: rgba(168, 85, 247, 0.25);
+      --green: #34d399;
+      --green-dim: rgba(52, 211, 153, 0.15);
+      --red: #f87171;
+      --red-dim: rgba(248, 113, 113, 0.15);
+      --amber: #fbbf24;
+      --amber-dim: rgba(251, 191, 36, 0.15);
+      --blue: #60a5fa;
+      --radius: 10px;
+      --radius-sm: 6px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body {
+      margin: 0; padding: 0;
+      background: transparent;
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      color: var(--muted);
+      font-size: 12px;
+      overflow: hidden;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       LAYOUT
+       ═══════════════════════════════════════════════════════════════════════════ */
+    #app-container {
+      width: 340px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 6px;
+    }
+
+    #app-container.expanded {
+      width: 420px;
+    }
+
+    .panel {
+      background: var(--bg);
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      overflow: hidden;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       HEADER
+       ═══════════════════════════════════════════════════════════════════════════ */
+    .header {
+      -webkit-app-region: drag;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      user-select: none;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-title { font-weight: 600; color: var(--text); letter-spacing: 0.3px; font-size: 12px; }
+
+    .header-badge {
+      background: rgba(255,255,255,0.1);
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      color: rgba(255,255,255,0.7);
+    }
+
+    .header-right {
+      -webkit-app-region: no-drag;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+    }
+
+    .dot { color: var(--purple); font-size: 8px; text-shadow: 0 0 6px rgba(168,85,247,0.6); }
+    .dot.connected { color: var(--green); text-shadow: 0 0 6px rgba(52,211,153,0.6); }
+    .dot.disconnected { color: var(--red); text-shadow: 0 0 6px rgba(248,113,113,0.4); }
+
+    .icon-btn {
+      -webkit-app-region: no-drag;
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: 13px; padding: 2px 4px;
+      border-radius: 4px; transition: background 0.15s;
+    }
+    .icon-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       PHASE NAV BAR
+       ═══════════════════════════════════════════════════════════════════════════ */
+    .phase-nav {
+      display: none;
+      -webkit-app-region: no-drag;
+      border-top: 1px solid var(--stroke);
+      padding: 4px 8px;
+    }
+    .phase-nav.show { display: flex; gap: 2px; }
+
+    .phase-btn {
+      flex: 1; padding: 5px 0; border: none; border-radius: var(--radius-sm);
+      background: rgba(255,255,255,0.04); color: var(--muted);
+      font-size: 10px; cursor: pointer; transition: all 0.15s;
+      text-align: center; font-weight: 500;
+    }
+    .phase-btn:hover { background: rgba(255,255,255,0.08); }
+    .phase-btn.active { background: var(--purple-dim); color: var(--purple); font-weight: 600; }
+    .phase-btn .phase-icon { margin-right: 3px; }
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       SCROLLABLE CONTENT AREA (shared by all phases)
+       ═══════════════════════════════════════════════════════════════════════════ */
+    .phase-content {
+      display: none;
+      max-height: 480px;
+      overflow-y: auto;
+      padding: 0 10px 10px;
+      border-top: 1px solid var(--stroke);
+      -webkit-app-region: no-drag;
+    }
+    .phase-content.show { display: block; }
+    .phase-content::-webkit-scrollbar { width: 3px; }
+    .phase-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+    .section-label {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      color: var(--purple); letter-spacing: 0.5px; padding: 8px 0 4px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       PRE-MEETING: Dashboard / Setup
+       ═══════════════════════════════════════════════════════════════════════════ */
+    /* Connection rows */
+    .connection-row {
+      display: flex; align-items: center; gap: 8px; padding: 5px 0;
+    }
+    .connection-row .service-name { flex: 1; font-size: 11px; color: var(--text); }
+    .connection-row .service-status { font-size: 10px; color: var(--text-dim); }
+
+    .input-row { display: flex; gap: 4px; margin-top: 4px; }
+    .input-row input { flex: 1; }
+
+    .settings-section { padding: 6px 0; }
+    .settings-section + .settings-section { border-top: 1px solid var(--stroke); }
+    .settings-section h3 {
+      font-size: 10px; font-weight: 600; color: var(--text);
+      text-transform: uppercase; letter-spacing: 0.4px; margin: 0 0 6px;
+    }
+
+    /* Alias table */
+    .alias-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    .alias-table th {
+      font-size: 9px; color: var(--text-dim); text-align: left;
+      padding: 3px 4px; border-bottom: 1px solid var(--stroke);
+      text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .alias-table td {
+      font-size: 10.5px; padding: 4px; color: var(--text);
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .alias-table .alias-from { color: var(--amber); }
+    .alias-table .alias-to { color: var(--green); }
+    .alias-remove {
+      background: none; border: none; color: var(--red);
+      cursor: pointer; font-size: 13px; padding: 0 4px;
+    }
+    .alias-remove:hover { color: #fff; }
+
+    .signout-row { padding: 8px 0 2px; text-align: center; }
+    .btn-signout {
+      background: var(--red-dim); color: var(--red);
+      border: none; border-radius: 4px; font-size: 10px;
+      padding: 5px 16px; cursor: pointer;
+    }
+    .btn-signout:hover { background: rgba(248,113,113,0.25); }
+
+    /* Calendar events in dashboard */
+    .event-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 6px; border-radius: var(--radius-sm);
+      background: rgba(255,255,255,0.03); margin-bottom: 3px;
+    }
+    .event-time { font-size: 10px; color: var(--purple); min-width: 50px; }
+    .event-title { font-size: 11px; color: var(--text); flex: 1; }
+    .event-date { font-size: 9.5px; color: var(--text-dim); }
+
+    /* Ready indicator */
+    .ready-banner {
+      text-align: center; padding: 12px 8px; margin: 6px 0;
+      background: var(--green-dim); border-radius: var(--radius-sm);
+      color: var(--green); font-size: 11px; font-weight: 500;
+    }
+    .setup-banner {
+      text-align: center; padding: 12px 8px; margin: 6px 0;
+      background: var(--amber-dim); border-radius: var(--radius-sm);
+      color: var(--amber); font-size: 11px; font-weight: 500;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       IN-MEETING: Overlay — Agenda + Nudges
+       ═══════════════════════════════════════════════════════════════════════════ */
+    /* Row / Spine / Timeline */
+    .row { display: flex; align-items: stretch; gap: 8px; padding: 2px 0; }
+    .spine { display: flex; flex-direction: column; align-items: center; width: 14px; margin: -2px 0; padding: 2px 0; }
+    .line { flex: 1; width: 1.5px; background: rgba(255,255,255,0.1); min-height: 4px; }
+    .circle {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,0.25);
+      background: rgba(0,0,0,0.3);
+      display: grid; place-items: center;
+      cursor: pointer; flex-shrink: 0;
+    }
+    .circle.covered { background: rgba(255,255,255,0.9); border-color: rgba(255,255,255,0.9); }
+    .check { font-size: 8px; color: #000; opacity: 0; user-select: none; }
+    .circle.covered .check { opacity: 1; }
+
+    .text-zone {
+      flex: 1; padding: 4px 0; cursor: pointer;
+      font-size: 11.5px; line-height: 1.35; color: var(--muted);
+      transition: background 0.1s; border-radius: 4px;
+    }
+    .text-zone:hover { background: rgba(255,255,255,0.05); }
+    .row.covered .text-zone { color: rgba(255,255,255,0.3); }
+    .row.archived .text-zone { color: rgba(255,255,255,0.25); text-decoration: line-through; }
+    .row.archived .circle { opacity: 0.3; cursor: default; }
+
+    .sep { height: 1px; background: var(--stroke); margin: 6px 0; }
+    .footer {
+      padding: 6px 10px; font-size: 10.5px;
+      color: rgba(255,255,255,0.4); text-align: center;
+      border-top: 1px solid var(--stroke); margin-top: 4px;
+    }
+
+    /* Start meeting button */
+    .btn-start-meeting {
+      width: 100%; padding: 8px; border: none; border-radius: var(--radius-sm);
+      background: var(--purple); color: #fff; font-size: 11px; font-weight: 600;
+      cursor: pointer; margin-top: 6px;
+    }
+    .btn-start-meeting:hover { background: #9333ea; }
+
+    .btn-end-meeting {
+      width: 100%; padding: 8px; border: none; border-radius: var(--radius-sm);
+      background: var(--red-dim); color: var(--red); font-size: 11px; font-weight: 600;
+      cursor: pointer; margin-top: 6px;
+    }
+    .btn-end-meeting:hover { background: rgba(248,113,113,0.25); }
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       POST-MEETING: Review
+       ═══════════════════════════════════════════════════════════════════════════ */
+    /* Transcript list */
+    .transcript-list { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
+
+    .transcript-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 6px 8px; border-radius: var(--radius-sm);
+      background: rgba(255,255,255,0.03); cursor: pointer;
+      transition: background 0.15s; gap: 8px;
+    }
+    .transcript-row:hover { background: rgba(255,255,255,0.07); }
+    .transcript-row.active { background: var(--purple-dim); border: 1px solid rgba(168,85,247,0.3); }
+
+    .transcript-info { flex: 1; min-width: 0; }
+    .transcript-title { font-size: 11px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+    .transcript-meta { font-size: 9.5px; color: var(--text-dim); }
+
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .status-dot.ready { background: var(--green); }
+    .status-dot.processing { background: var(--amber); animation: pulse 1.2s infinite; }
+    .status-dot.queued { background: var(--amber); opacity: 0.5; }
+    .status-dot.error { background: var(--red); }
+    .status-dot.unknown { background: var(--muted); opacity: 0.3; }
+
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* Subtabs */
+    .subtab-bar { display: flex; gap: 2px; padding: 6px 0 4px; }
+    .subtab-btn {
+      flex: 1; padding: 4px 0; border: none; border-radius: var(--radius-sm);
+      background: rgba(255,255,255,0.04); color: var(--muted);
+      font-size: 10px; cursor: pointer; transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+    }
+    .subtab-btn:hover { background: rgba(255,255,255,0.08); }
+    .subtab-btn.active { background: var(--purple-dim); color: var(--purple); font-weight: 600; }
+    .tab-count { font-size: 9px; padding: 1px 5px; border-radius: 999px; background: rgba(255,255,255,0.08); }
+    .subtab-btn.active .tab-count { background: rgba(168,85,247,0.3); }
+
+    /* Action item cards */
+    .ai-card {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--stroke);
+      border-radius: var(--radius-sm); padding: 8px; margin-bottom: 6px;
+      transition: border-color 0.15s;
+    }
+    .ai-card:hover { border-color: var(--stroke-hover); }
+
+    .ai-card-header { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+
+    .source-badge {
+      font-size: 9px; padding: 1px 6px; border-radius: 999px;
+      background: rgba(255,255,255,0.06); color: var(--text-dim);
+    }
+    .source-badge.suggested { background: var(--purple-dim); color: var(--purple); }
+
+    .flag-badge {
+      font-size: 9px; padding: 1px 6px; border-radius: 999px;
+      cursor: pointer; white-space: nowrap; overflow: hidden;
+      max-width: 24px; transition: max-width 0.25s;
+    }
+    .flag-badge.expanded { max-width: 300px; }
+    .flag-badge .flag-text { margin-left: 2px; }
+    .flag-badge.gap-flag { background: var(--amber-dim); color: var(--amber); }
+    .flag-badge.description-flag { background: rgba(96,165,250,0.15); color: var(--blue); }
+    .flag-badge.owner-flag { background: var(--purple-dim); color: var(--purple); }
+
+    /* Editable fields */
+    .ai-desc {
+      width: 100%; background: rgba(255,255,255,0.04);
+      border: 1px solid var(--stroke); border-radius: 4px;
+      color: var(--text); font-size: 11px; padding: 5px 6px;
+      resize: vertical; min-height: 28px; font-family: inherit;
+    }
+    .ai-desc:focus { outline: none; border-color: var(--purple); }
+
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 4px; }
+    .meta-grid.three-col { grid-template-columns: 1fr 1fr 1fr; }
+
+    .field-group label {
+      font-size: 9px; color: var(--text-dim); text-transform: uppercase;
+      letter-spacing: 0.3px; display: block; margin-bottom: 2px;
+    }
+
+    .edit-field {
+      width: 100%; background: rgba(255,255,255,0.04);
+      border: 1px solid var(--stroke); border-radius: 4px;
+      color: var(--text); font-size: 10.5px; padding: 4px 5px;
+      font-family: inherit;
+    }
+    .edit-field:focus { outline: none; border-color: var(--purple); }
+
+    /* Tag input */
+    .tag-input-container {
+      display: flex; flex-wrap: wrap; gap: 3px;
+      background: rgba(255,255,255,0.04); border: 1px solid var(--stroke);
+      border-radius: 4px; padding: 3px 4px; cursor: text; min-height: 24px;
+    }
+    .tag-input-container:focus-within { border-color: var(--purple); }
+    .tag-chip {
+      display: flex; align-items: center; gap: 2px;
+      background: var(--purple-dim); color: var(--purple);
+      padding: 1px 5px; border-radius: 999px; font-size: 10px;
+    }
+    .tag-remove {
+      background: none; border: none; color: var(--purple);
+      cursor: pointer; font-size: 12px; padding: 0 1px; line-height: 1;
+    }
+    .tag-text-input {
+      flex: 1; min-width: 50px; background: none; border: none;
+      color: var(--text); font-size: 10px; outline: none;
+    }
+
+    /* Action buttons */
+    .ai-actions { display: flex; gap: 4px; margin-top: 6px; }
+
+    .btn {
+      border: none; border-radius: 4px; font-size: 10px;
+      padding: 4px 10px; cursor: pointer; font-weight: 500;
+      transition: all 0.15s;
+    }
+    .btn-approve { background: var(--green-dim); color: var(--green); }
+    .btn-approve:hover { background: rgba(52,211,153,0.25); }
+    .btn-reject { background: var(--red-dim); color: var(--red); }
+    .btn-reject:hover { background: rgba(248,113,113,0.25); }
+    .btn-undo { background: rgba(255,255,255,0.06); color: var(--muted); }
+    .btn-undo:hover { background: rgba(255,255,255,0.1); }
+    .btn-primary { background: var(--purple-dim); color: var(--purple); }
+    .btn-primary:hover { background: rgba(168,85,247,0.35); }
+    .btn-primary:disabled { opacity: 0.4; cursor: default; }
+    .btn-small { padding: 3px 8px; font-size: 9.5px; }
+    .btn-calendar { background: var(--green-dim); color: var(--green); }
+    .btn-calendar:hover { background: rgba(52,211,153,0.25); }
+    .btn-create { background: rgba(255,255,255,0.06); color: var(--text-dim); }
+    .btn-create:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+
+    .action-toolbar { display: flex; gap: 4px; padding: 4px 0 6px; flex-wrap: wrap; }
+
+    .filter-row { display: flex; gap: 4px; padding: 4px 0; flex-wrap: wrap; }
+    .filter-row .edit-field { width: auto; min-width: 70px; flex: 1; }
+
+    /* Meeting summary in post-meeting */
+    .summary-card {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--stroke);
+      border-radius: var(--radius-sm); padding: 10px; margin-bottom: 8px;
+    }
+    .summary-stat {
+      display: flex; justify-content: space-between; padding: 3px 0;
+      font-size: 11px;
+    }
+    .summary-stat .stat-label { color: var(--text-dim); }
+    .summary-stat .stat-value { color: var(--text); font-weight: 500; }
+    .summary-stat .stat-value.good { color: var(--green); }
+    .summary-stat .stat-value.warn { color: var(--amber); }
+
+    .empty-state { text-align: center; padding: 16px 8px; color: var(--text-dim); font-size: 11px; }
+    .loading-state { text-align: center; padding: 16px 8px; color: var(--purple); font-size: 11px; }
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       NUDGE TOAST
+       ═══════════════════════════════════════════════════════════════════════════ */
+    .nudge-panel {
+      display: none;
+      background: rgba(25,20,35,0.9);
+      border: 1px solid var(--purple);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      -webkit-app-region: no-drag;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(168,85,247,0.15);
+    }
+    .nudge-panel.show { display: block; }
+    .nudge-panel.pinned { background: rgba(40,20,60,0.95); border-color: rgba(168,85,247,0.9); }
+
+    .nudge-header {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 9px; font-weight: 700; color: var(--purple);
+      text-transform: uppercase; margin-bottom: 4px;
+    }
+    .nudge-text { font-size: 11.5px; color: #fff; line-height: 1.4; }
+
+    .pin-badge {
+      display: none; background: var(--purple); color: #fff;
+      padding: 1px 4px; border-radius: 3px; font-size: 8px;
+    }
+    .nudge-panel.pinned .pin-badge { display: block; }
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       UTILITY
+       ═══════════════════════════════════════════════════════════════════════════ */
+    .hidden { display: none !important; }
+    .priority-high { color: var(--red); }
+    .priority-medium { color: var(--amber); }
+    .priority-low { color: var(--green); }
+  </style>
+</head>
+
+<body>
+  <div id="app-container">
+
+    <!-- ═══ Main Panel ═══ -->
+    <div class="panel" id="mainPanel">
+      <!-- Header -->
+      <div class="header">
+        <div class="header-left">
+          <span class="header-title">Meeting Agent</span>
+          <span class="header-badge" id="headerBadge">--</span>
+          <span class="header-badge" id="headerTime" class="hidden">00:00</span>
+        </div>
+        <div class="header-right">
+          <span class="dot" id="statusDot">●</span>
+          <span id="statusLabel">Starting</span>
+          <button class="icon-btn" id="gearBtn" title="Settings">⚙</button>
+        </div>
+      </div>
+
+      <!-- Phase Navigation -->
+      <div class="phase-nav" id="phaseNav">
+        <button class="phase-btn active" data-phase="pre"><span class="phase-icon">◎</span>Pre</button>
+        <button class="phase-btn" data-phase="in"><span class="phase-icon">●</span>In-Meeting</button>
+        <button class="phase-btn" data-phase="post"><span class="phase-icon">◉</span>Post</button>
+      </div>
+
+      <!-- ═══ PRE-MEETING PHASE ═══ -->
+      <div class="phase-content" id="phasePreContent">
+
+        <!-- Status Banner -->
+        <div id="preBanner"></div>
+
+        <!-- Connections -->
+        <div class="settings-section">
+          <h3>Connections</h3>
+
+          <!-- Fireflies -->
+          <div class="connection-row">
+            <span class="dot disconnected" id="ffDot">●</span>
+            <span class="service-name">Fireflies.ai</span>
+            <span class="service-status" id="ffStatus">Not connected</span>
+          </div>
+          <div class="input-row" id="ffInputRow">
+            <input type="password" class="edit-field" id="ffKeyInput" placeholder="Fireflies API Key" />
+            <button class="btn btn-primary btn-small" id="ffConnectBtn">Connect</button>
+          </div>
+          <div class="input-row hidden" id="ffDisconnectRow">
+            <button class="btn btn-undo btn-small" id="ffDisconnectBtn">Disconnect</button>
+          </div>
+
+          <!-- Google Calendar -->
+          <div class="connection-row" style="margin-top:6px">
+            <span class="dot disconnected" id="calDot">●</span>
+            <span class="service-name">Google Calendar</span>
+            <span class="service-status" id="calStatus">Not connected</span>
+          </div>
+          <div id="calInputRow">
+            <div class="input-row">
+              <input type="password" class="edit-field" id="calClientId" placeholder="OAuth Client ID" />
+            </div>
+            <div class="input-row" style="margin-top:3px">
+              <input type="password" class="edit-field" id="calClientSecret" placeholder="OAuth Client Secret" />
+              <button class="btn btn-primary btn-small" id="calConnectBtn">Connect</button>
+            </div>
+          </div>
+          <div class="input-row hidden" id="calDisconnectRow">
+            <button class="btn btn-undo btn-small" id="calDisconnectBtn">Disconnect</button>
+          </div>
+
+          <!-- Gemini -->
+          <div class="connection-row" style="margin-top:6px">
+            <span class="dot disconnected" id="gemDot">●</span>
+            <span class="service-name">Google Gemini</span>
+            <span class="service-status" id="gemStatus">Not connected</span>
+          </div>
+          <div class="input-row" id="gemInputRow">
+            <input type="password" class="edit-field" id="gemKeyInput" placeholder="Gemini API Key" />
+            <button class="btn btn-primary btn-small" id="gemConnectBtn">Connect</button>
+          </div>
+          <div class="input-row hidden" id="gemDisconnectRow">
+            <button class="btn btn-undo btn-small" id="gemDisconnectBtn">Disconnect</button>
+          </div>
+        </div>
+
+        <!-- Upcoming Events -->
+        <div class="settings-section">
+          <h3>Upcoming Events</h3>
+          <div id="upcomingEvents"><div class="empty-state">Connect Google Calendar to see events.</div></div>
+        </div>
+
+        <!-- Name Aliases -->
+        <div class="settings-section">
+          <h3>Name Aliases</h3>
+          <p style="font-size:10px;color:var(--text-dim);margin:0 0 4px">Map misspellings to correct names for Gemini.</p>
+          <div class="input-row">
+            <input type="text" class="edit-field" id="aliasFrom" placeholder="Misspelling" />
+            <input type="text" class="edit-field" id="aliasTo" placeholder="Correct Name" />
+            <button class="btn btn-primary btn-small" id="aliasAddBtn">Add</button>
+          </div>
+          <table class="alias-table" id="aliasTable">
+            <thead><tr><th>From</th><th>To</th><th></th></tr></thead>
+            <tbody id="aliasBody"></tbody>
+          </table>
+        </div>
+
+        <!-- Sign Out -->
+        <div class="signout-row">
+          <button class="btn-signout" id="signoutBtn">Sign Out All</button>
+        </div>
+      </div>
+
+      <!-- ═══ IN-MEETING PHASE ═══ -->
+      <div class="phase-content" id="phaseInContent">
+        <!-- Agenda Questions -->
+        <div class="section-label">Agenda Questions</div>
+        <div id="agendaList"></div>
+        <div class="footer" id="footerText">Hold ESC to peek. Press ` to trigger nudge.</div>
+
+        <div class="sep"></div>
+
+        <!-- End meeting button -->
+        <button class="btn-end-meeting" id="endMeetingBtn">End Meeting → Post Review</button>
+      </div>
+
+      <!-- ═══ POST-MEETING PHASE ═══ -->
+      <div class="phase-content" id="phasePostContent">
+
+        <!-- Meeting Summary -->
+        <div id="meetingSummary"></div>
+
+        <!-- Transcript selector -->
+        <div class="section-label">Select Meeting to Review</div>
+        <div class="transcript-list" id="transcriptList"></div>
+
+        <!-- Action items for selected transcript -->
+        <div id="actionItemsPanel" class="hidden">
+          <div class="sep"></div>
+          <div class="section-label" id="aiSectionLabel">Action Items</div>
+
+          <!-- Subtabs -->
+          <div class="subtab-bar" id="aiSubtabs">
+            <button class="subtab-btn active" data-tab="pending">Review <span class="tab-count" id="countPending">0</span></button>
+            <button class="subtab-btn" data-tab="approved">Approved <span class="tab-count" id="countApproved">0</span></button>
+            <button class="subtab-btn" data-tab="rejected">Rejected <span class="tab-count" id="countRejected">0</span></button>
+          </div>
+
+          <!-- Toolbar (approved tab) -->
+          <div class="action-toolbar hidden" id="approvedToolbar">
+            <button class="btn btn-calendar btn-small" id="pushCalendarBtn">Sync to Calendar</button>
+            <button class="btn btn-create btn-small" id="createItemBtn">+ New Item</button>
+          </div>
+
+          <!-- Filter row -->
+          <div class="filter-row">
+            <div class="field-group" style="flex:1">
+              <label>Priority</label>
+              <select class="edit-field" id="filterPriority">
+                <option value="all">All</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+            <div class="field-group" style="flex:1">
+              <label>Sort</label>
+              <select class="edit-field" id="sortField">
+                <option value="none">None</option>
+                <option value="priority">Priority</option>
+                <option value="deadline">Deadline</option>
+                <option value="owner">Owner</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Cards -->
+          <div id="actionItemsList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Nudge Toast ═══ -->
+    <div class="nudge-panel" id="nudgePanel">
+      <div class="nudge-header">
+        <span id="nudgeReason">Suggested Question</span>
+        <span class="pin-badge">Pinned</span>
+      </div>
+      <div class="nudge-text" id="nudgeText"></div>
+    </div>
+
+  </div>
+
+  <script src="./api.js"></script>
+  <script src="./renderer.js"></script>
+</body>
+
+</html>
