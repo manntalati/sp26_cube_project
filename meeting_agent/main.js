@@ -157,3 +157,7 @@ ipcMain.on('resize-window', (_event, width, height) => {
 ipcMain.on('open-external', (_event, url) => {
   shell.openExternal(url);
 });
+
+ipcMain.on('quit-app', () => {
+  app.quit();
+});

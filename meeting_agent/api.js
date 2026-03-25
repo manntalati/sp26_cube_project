@@ -63,4 +63,9 @@ const API = {
   // Settings
   getAliases: () => apiGet('/api/settings/aliases'),
   saveAliases: (aliases) => apiPost('/api/settings/aliases', { aliases }),
+
+  // Demo
+  enableDemo: () => apiPost('/api/demo/enable'),
+  disableDemo: () => apiPost('/api/demo/disable'),
+  getDemoStatus: () => apiGet('/api/demo/status'),
 };

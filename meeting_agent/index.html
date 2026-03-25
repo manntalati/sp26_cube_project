@@ -113,6 +113,7 @@
       border-radius: 4px; transition: background 0.15s;
     }
     .icon-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+    .icon-btn.demo-active { color: var(--green); text-shadow: 0 0 6px rgba(52,211,153,0.5); }
 
     /* ═══════════════════════════════════════════════════════════════════════════
        PHASE NAV BAR
@@ -487,7 +488,9 @@
         <div class="header-right">
           <span class="dot" id="statusDot">●</span>
           <span id="statusLabel">Starting</span>
+          <button class="icon-btn" id="demoBtn" title="Toggle Demo Mode">▶</button>
           <button class="icon-btn" id="gearBtn" title="Settings">⚙</button>
+          <button class="icon-btn" id="closeBtn" title="Quit (Cmd+Q)" style="color:var(--red);font-size:11px;">✕</button>
         </div>
       </div>
 

@@ -135,6 +135,10 @@ function updateHeaderBadge() {
 // ─────────────────────────────────────────────────────────────────────────────
 // SETTINGS GEAR — toggles Pre-Meeting phase
 // ─────────────────────────────────────────────────────────────────────────────
+$('closeBtn').addEventListener('click', () => {
+  window.electronAPI.quitApp();
+});
+
 $('gearBtn').addEventListener('click', () => {
   if (currentPhase === 'pre' && phasePreContent.classList.contains('show')) {
     // Already open, collapse
@@ -1037,6 +1041,133 @@ function triggerRandomNudge() {
     const reasons = ['Topic Detected', 'Context Shift', 'Audience Interest', 'Suggested Question'];
     window.flagQuestion(q.id, reasons[Math.floor(Math.random() * reasons.length)]);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEMO MODE
+// ═══════════════════════════════════════════════════════════════════════════════
+let demoActive = false;
+let demoTimers = [];
+
+const DEMO_AGENDA = [
+  "What is our Q3 revenue target and how does it compare to Q2?",
+  "Who owns the vendor evaluation for the analytics platform?",
+  "When is the staging migration deadline?",
+  "Is the customer interview script ready for the onboarding research?",
+  "What is the fallback plan if we miss the feature freeze date?",
+];
+
+const DEMO_NUDGE_SCRIPT = [
+  // [delay_seconds, question_index, reason]
+  [8,  1, "Topic Detected"],
+  [16, 0, "Context Shift"],
+  [24, 4, "Audience Interest"],
+  [32, 3, "Suggested Question"],
+];
+
+const DEMO_COVER_SCRIPT = [
+  // [delay_seconds, question_index] — simulate questions getting answered
+  [12, 1],
+  [20, 0],
+  [36, 4],
+];
+
+$('demoBtn').addEventListener('click', toggleDemo);
+
+async function toggleDemo() {
+  if (demoActive) {
+    await stopDemo();
+  } else {
+    await startDemo();
+  }
+}
+
+async function startDemo() {
+  demoActive = true;
+  $('demoBtn').classList.add('demo-active');
+  $('demoBtn').textContent = '■';
+  $('demoBtn').title = 'Stop Demo';
+
+  // 1. Enable demo mode on backend (populates mock data)
+  await API.enableDemo();
+
+  // 2. Refresh connections — they should now all be connected
+  await refreshAuthStatus();
+  await loadTranscripts();
+
+  // 3. Show Pre-Meeting phase with everything green
+  switchPhase('pre');
+  phaseNav.classList.add('show');
+
+  // 4. After a pause, auto-switch to In-Meeting with agenda loaded
+  demoTimers.push(setTimeout(() => {
+    window.setAgenda(DEMO_AGENDA);
+    switchPhase('in');
+    phaseNav.classList.add('show');
+    phaseInContent.classList.add('show');
+
+    // 5. Run the nudge script (timed nudges during "meeting")
+    DEMO_NUDGE_SCRIPT.forEach(([delaySec, qIdx, reason]) => {
+      demoTimers.push(setTimeout(() => {
+        if (demoActive && currentPhase === 'in') {
+          showNudge(qIdx, reason);
+        }
+      }, delaySec * 1000));
+    });
+
+    // 6. Run the cover script (auto-answer questions)
+    DEMO_COVER_SCRIPT.forEach(([delaySec, qIdx]) => {
+      demoTimers.push(setTimeout(() => {
+        if (demoActive && currentPhase === 'in') {
+          window.markCovered(qIdx);
+        }
+      }, delaySec * 1000));
+    });
+
+    // 7. After the meeting simulation, auto-switch to Post-Meeting
+    demoTimers.push(setTimeout(() => {
+      if (demoActive) {
+        meetingActive = false;
+        switchPhase('post');
+        phaseNav.classList.add('show');
+
+        // Auto-select the first transcript after a brief pause
+        demoTimers.push(setTimeout(() => {
+          if (demoActive && transcripts.length > 0) {
+            selectTranscript(transcripts[0].id);
+          }
+        }, 1500));
+      }
+    }, 42 * 1000));
+
+  }, 3000));
+}
+
+async function stopDemo() {
+  demoActive = false;
+  $('demoBtn').classList.remove('demo-active');
+  $('demoBtn').textContent = '▶';
+  $('demoBtn').title = 'Toggle Demo Mode';
+
+  // Clear all scheduled timers
+  demoTimers.forEach(t => clearTimeout(t));
+  demoTimers = [];
+
+  // Disable demo mode on backend
+  await API.disableDemo();
+
+  // Reset state
+  agendaData = [];
+  actionItems = [];
+  transcripts = [];
+  analysisById = {};
+  selectedTranscriptId = null;
+  meetingActive = false;
+  meetingStartEpochMs = null;
+  dismissNudge();
+
+  await refreshAuthStatus();
+  switchPhase('pre');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

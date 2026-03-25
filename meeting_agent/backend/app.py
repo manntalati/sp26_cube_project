@@ -17,6 +17,7 @@ from routes.fireflies import fireflies_bp
 from routes.calendar_api import calendar_bp
 from routes.gemini import gemini_bp
 from routes.settings import settings_bp
+from routes.demo import demo_bp
 from services.background_analysis import start_background_worker
 
 app = Flask(__name__)
@@ -32,6 +33,7 @@ app.register_blueprint(fireflies_bp, url_prefix='/api/fireflies')
 app.register_blueprint(calendar_bp, url_prefix='/api/calendar')
 app.register_blueprint(gemini_bp, url_prefix='/api/gemini')
 app.register_blueprint(settings_bp, url_prefix='/api/settings')
+app.register_blueprint(demo_bp, url_prefix='/api/demo')
 
 # Start background analysis worker (avoid double-start in debug reloader)
 if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:

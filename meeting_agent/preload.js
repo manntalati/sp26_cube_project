@@ -11,4 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onEscPressed: (callback) => ipcRenderer.on('esc-pressed', callback),
   onBacktickPressed: (callback) => ipcRenderer.on('backtick-pressed', callback),
   onToggleSettings: (callback) => ipcRenderer.on('toggle-settings', callback),
+
+  // Quit the app
+  quitApp: () => ipcRenderer.send('quit-app'),
 });

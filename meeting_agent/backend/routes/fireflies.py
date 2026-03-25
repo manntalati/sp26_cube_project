@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify
 from services.fireflies_service import get_transcripts, get_transcript_action_items
 from routes.auth import CONNECTED_ACCOUNTS, is_connected
 from services.background_analysis import enqueue_analysis, get_analysis_record
+from routes.demo import is_demo_active, DEMO_TRANSCRIPTS
 
 fireflies_bp = Blueprint('fireflies', __name__)
 
@@ -9,10 +10,14 @@ fireflies_bp = Blueprint('fireflies', __name__)
 def fetch_transcripts():
     if not is_connected("fireflies"):
         return jsonify({"success": False, "error": "Fireflies account not connected"}), 401
-        
+
+    # Demo mode: return mock transcripts without hitting Fireflies API
+    if is_demo_active():
+        return jsonify({"success": True, "transcripts": DEMO_TRANSCRIPTS})
+
     api_key = CONNECTED_ACCOUNTS["fireflies"]["api_key"]
     success, result = get_transcripts(api_key)
-    
+
     if success:
         # Enqueue background analysis for any transcripts we haven't processed yet.
         transcripts = result or []
