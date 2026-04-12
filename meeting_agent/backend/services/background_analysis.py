@@ -123,7 +123,8 @@ def _worker_loop() -> None:
                 _queue.task_done()
                 continue
 
-            _set_record(transcript_id, status="ready", items=gemini_result, error=None)
+            # Pass items and tldrs separately
+            _set_record(transcript_id, status="ready", items=gemini_result.get("items", []), tldrs=gemini_result, error=None)
             _queue.task_done()
         except Exception as e:
             _set_record(transcript_id, status="error", error=f"Unhandled internal error: {str(e)}", items=None)

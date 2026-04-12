@@ -39,9 +39,10 @@ def get_google_auth_flow(client_id=None, client_secret=None):
     return flow
 
 
-def list_upcoming_events(credentials_dict, max_results=10):
+def list_upcoming_events(credentials_dict, max_results=20):
     """
-    Lists the next N events on the user's primary calendar.
+    Lists upcoming meeting events (next 30 days) on the user's primary calendar.
+    Filters to events that look like meetings: have multiple attendees or a video conference link.
     """
     if not credentials_dict:
         return False, "No credentials provided"
@@ -50,20 +51,41 @@ def list_upcoming_events(credentials_dict, max_results=10):
         creds = Credentials(**credentials_dict)
         service = build('calendar', 'v3', credentials=creds)
 
-        now = datetime.datetime.utcnow().isoformat() + 'Z'
-        events_result = service.events().list(calendarId='primary', timeMin=now,
-                                              maxResults=max_results, singleEvents=True,
-                                              orderBy='startTime').execute()
+        now = datetime.datetime.utcnow()
+        time_min = now.isoformat() + 'Z'
+        time_max = (now + datetime.timedelta(days=30)).isoformat() + 'Z'
+
+        events_result = service.events().list(
+            calendarId='primary',
+            timeMin=time_min,
+            timeMax=time_max,
+            maxResults=max_results,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
         events = events_result.get('items', [])
         
         parsed_events = []
         for event in events:
             start = event['start'].get('dateTime', event['start'].get('date'))
+            end = event['end'].get('dateTime', event['end'].get('date'))
+
+            attendees = event.get('attendees', [])
+            # Count non-self attendees
+            attendee_count = len([a for a in attendees if not a.get('self', False)])
+            has_conference = bool(event.get('conferenceData') or event.get('hangoutLink'))
+
+            # Only include events that look like meetings
+            if attendee_count < 1 and not has_conference:
+                continue
+
             parsed_events.append({
                 'id': event.get('id'),
-                'title': event.get('summary', 'Untitled Event'),
+                'title': event.get('summary', 'Untitled Meeting'),
                 'start': start,
-                'link': event.get('htmlLink')
+                'end': end,
+                'link': event.get('htmlLink'),
+                'attendee_count': attendee_count,
             })
             
         return True, parsed_events
