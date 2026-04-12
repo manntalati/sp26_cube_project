@@ -435,6 +435,162 @@
     .loading-state { text-align: center; padding: 16px 8px; color: var(--purple); font-size: 11px; }
 
     /* ═══════════════════════════════════════════════════════════════════════════
+       GENERATE MEETING SUMMARY
+       ═══════════════════════════════════════════════════════════════════════════ */
+    #summaryGeneratorSection { margin-top: 6px; }
+
+    .summary-generate-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 0 6px;
+    }
+
+    .btn-generate-summary {
+      width: 100%; padding: 8px; border: none; border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, rgba(168,85,247,0.3), rgba(96,165,250,0.2));
+      border: 1px solid rgba(168,85,247,0.4);
+      color: var(--purple); font-size: 11px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .btn-generate-summary:hover {
+      background: linear-gradient(135deg, rgba(168,85,247,0.45), rgba(96,165,250,0.3));
+      border-color: rgba(168,85,247,0.6);
+      box-shadow: 0 0 12px rgba(168,85,247,0.2);
+    }
+    .btn-generate-summary:disabled { opacity: 0.4; cursor: default; }
+
+    .formality-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 0 4px;
+    }
+    .formality-label { font-size: 9px; color: var(--text-dim); white-space: nowrap; }
+    .formality-slider {
+      flex: 1;
+      -webkit-appearance: none; appearance: none;
+      height: 3px; border-radius: 2px;
+      background: linear-gradient(to right, var(--blue), var(--purple));
+      outline: none; cursor: pointer;
+    }
+    .formality-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: var(--purple); cursor: pointer;
+      border: 2px solid rgba(255,255,255,0.8);
+      box-shadow: 0 0 6px rgba(168,85,247,0.5);
+    }
+    .formality-value-label {
+      font-size: 9px; color: var(--purple); min-width: 56px;
+      text-align: right; font-weight: 600;
+    }
+
+    /* Summary output */
+    .summary-output {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--stroke);
+      border-radius: var(--radius-sm); padding: 10px;
+      margin-top: 6px; animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+    .summary-output-title {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: var(--blue); margin-bottom: 6px;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .summary-output-title::after {
+      content: ''; flex: 1; height: 1px; background: rgba(96,165,250,0.2);
+    }
+
+    .summary-tldr {
+      font-size: 11px; line-height: 1.55;
+      color: var(--text); margin-bottom: 10px;
+      padding: 8px; border-radius: 4px;
+      background: rgba(96,165,250,0.06);
+      border-left: 2px solid var(--blue);
+    }
+
+    .summary-section {
+      margin-bottom: 8px;
+    }
+    .summary-section-title {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.4px; color: var(--purple);
+      margin: 0 0 4px;
+    }
+    .summary-list { list-style: none; margin: 0; padding: 0; }
+    .summary-list li {
+      font-size: 10.5px; line-height: 1.4; color: var(--text);
+      padding: 3px 0 3px 12px; position: relative;
+    }
+    .summary-list li::before {
+      content: '•'; position: absolute; left: 0;
+      color: var(--purple); font-size: 10px;
+    }
+    .summary-next-item {
+      display: flex; gap: 8px;
+      padding: 4px 6px; border-radius: 4px;
+      background: rgba(255,255,255,0.02); margin-bottom: 3px;
+      border: 1px solid rgba(255,255,255,0.04);
+      align-items: flex-start;
+    }
+    .summary-next-priority {
+      font-size: 8px; padding: 2px 5px; border-radius: 999px;
+      font-weight: 700; text-transform: uppercase; white-space: nowrap;
+      flex-shrink: 0; margin-top: 1px;
+    }
+    .priority-chip-high { background: var(--red-dim); color: var(--red); }
+    .priority-chip-medium { background: var(--amber-dim); color: var(--amber); }
+    .priority-chip-low { background: var(--green-dim); color: var(--green); }
+    .priority-chip-none { background: rgba(255,255,255,0.06); color: var(--text-dim); }
+    .summary-next-body { flex: 1; min-width: 0; }
+    .summary-next-desc { font-size: 10.5px; color: var(--text); line-height: 1.35; }
+    .summary-next-meta { font-size: 9.5px; color: var(--text-dim); margin-top: 1px; }
+
+    .summary-empty-section {
+      font-size: 10px; color: var(--text-dim); font-style: italic;
+      padding: 2px 0;
+    }
+
+    .summary-export-row {
+      display: flex; gap: 4px; margin-top: 8px; padding-top: 8px;
+      border-top: 1px solid var(--stroke);
+    }
+    .btn-clipboard {
+      flex: 1; background: rgba(255,255,255,0.05); color: var(--muted);
+      border: 1px solid var(--stroke); border-radius: 4px;
+      font-size: 10px; padding: 5px 8px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+      transition: all 0.15s;
+    }
+    .btn-clipboard:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+    .btn-clipboard.copied { background: var(--green-dim); color: var(--green); border-color: rgba(52,211,153,0.3); }
+    .btn-pdf {
+      flex: 1; background: rgba(96,165,250,0.1); color: var(--blue);
+      border: 1px solid rgba(96,165,250,0.25); border-radius: 4px;
+      font-size: 10px; padding: 5px 8px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+      transition: all 0.15s;
+    }
+    .btn-pdf:hover { background: rgba(96,165,250,0.2); border-color: rgba(96,165,250,0.4); }
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       PRINT / PDF EXPORT
+       ═══════════════════════════════════════════════════════════════════════════ */
+    @media print {
+      body { background: #fff !important; color: #111 !important; font-family: Georgia, serif; }
+      #app-container > *:not(#print-summary-frame) { display: none !important; }
+      #print-summary-frame { display: block !important; width: 100%; }
+      .print-summary-inner { color: #111 !important; padding: 24px; }
+      .print-summary-inner h1 { font-size: 18px; margin: 0 0 4px; }
+      .print-summary-inner .print-meta { font-size: 11px; color: #666; margin-bottom: 16px; }
+      .print-summary-inner h2 { font-size: 13px; color: #333; margin: 14px 0 4px; border-bottom: 1px solid #ddd; padding-bottom: 2px; }
+      .print-summary-inner p, .print-summary-inner li { font-size: 12px; line-height: 1.6; margin: 3px 0; }
+      .print-summary-inner ul { padding-left: 18px; }
+      .print-summary-inner .print-next-item { margin-bottom: 6px; }
+      .print-summary-inner .print-priority { font-size: 10px; font-weight: bold; text-transform: uppercase; }
+    }
+    #print-summary-frame { display: none; }
+
+    /* ═══════════════════════════════════════════════════════════════════════════
        NUDGE TOAST
        ═══════════════════════════════════════════════════════════════════════════ */
     .nudge-panel {
@@ -470,6 +626,83 @@
     .priority-high { color: var(--red); }
     .priority-medium { color: var(--amber); }
     .priority-low { color: var(--green); }
+
+    /* Custom UI Components */
+    .multi-select-container { position: relative; flex: 1; min-width: 120px; }
+    .multi-select-button {
+      width: 100%; height: 26px; background: rgba(0,0,0,0.2);
+      border: 1px solid var(--stroke); border-radius: 4px;
+      color: var(--text); font-size: 11px; padding: 0 8px;
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .multi-select-dropdown {
+      position: absolute; top: calc(100% + 4px); left: 0; width: 100%;
+      background: var(--bg); border: 1px solid var(--stroke); border-radius: 4px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 100;
+      max-height: 200px; overflow-y: auto; display: none;
+    }
+    .multi-select-dropdown.show { display: block; }
+    .multi-select-option {
+      padding: 6px 8px; display: flex; align-items: center; gap: 6px;
+      cursor: pointer; font-size: 11px;
+    }
+    .multi-select-option:hover { background: rgba(255,255,255,0.05); }
+    .transcript-settings-btn {
+      background: none; border: none; color: var(--text-dim); padding: 4px 6px; cursor: pointer;
+      font-size: 12px; border-radius: 4px; transition: 0.15s; margin-left: auto;
+    }
+    .transcript-settings-btn:hover { color: var(--text); background: rgba(255,255,255,0.1); }
+
+
+    /* Expandable meeting cards (Upcoming Meetings) */
+    .meeting-card {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--stroke);
+      border-radius: var(--radius-sm); margin-bottom: 4px; overflow: hidden;
+      transition: border-color 0.15s;
+    }
+    .meeting-card:hover { border-color: var(--stroke-hover); }
+    .meeting-card.expanded { border-color: rgba(168,85,247,0.3); }
+    .meeting-card-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 8px; cursor: pointer; user-select: none;
+    }
+    .meeting-card-time { font-size: 10px; color: var(--purple); min-width: 50px; }
+    .meeting-card-title { font-size: 11px; color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .meeting-card-date { font-size: 9.5px; color: var(--text-dim); }
+    .meeting-card-chevron { font-size: 9px; color: var(--text-dim); transition: transform 0.2s; flex-shrink: 0; }
+    .meeting-card.expanded .meeting-card-chevron { transform: rotate(180deg); }
+    .meeting-card-body {
+      display: none; padding: 6px 8px 8px; border-top: 1px solid var(--stroke);
+      background: rgba(255,255,255,0.01);
+    }
+    .meeting-card.expanded .meeting-card-body { display: block; }
+    .meeting-participants-label {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      color: var(--blue); letter-spacing: 0.4px; margin-bottom: 5px;
+    }
+    .participant-tag-container {
+      display: flex; flex-wrap: wrap; gap: 3px;
+      background: rgba(255,255,255,0.04); border: 1px solid var(--stroke);
+      border-radius: 4px; padding: 4px 5px; cursor: text; min-height: 26px;
+    }
+    .participant-tag-container:focus-within { border-color: var(--blue); }
+    .participant-chip {
+      display: flex; align-items: center; gap: 2px;
+      background: rgba(96,165,250,0.15); color: var(--blue);
+      padding: 1px 6px; border-radius: 999px; font-size: 10px;
+    }
+    .participant-remove {
+      background: none; border: none; color: var(--blue);
+      cursor: pointer; font-size: 12px; padding: 0 1px; line-height: 1;
+    }
+    .participant-text-input {
+      flex: 1; min-width: 60px; background: none; border: none;
+      color: var(--text); font-size: 10px; outline: none;
+    }
+    .meeting-attendee-count {
+      font-size: 9px; color: var(--text-dim); margin-top: 4px;
+    }
   </style>
 </head>
 
@@ -559,25 +792,10 @@
           </div>
         </div>
 
-        <!-- Upcoming Events -->
+        <!-- Upcoming Meetings -->
         <div class="settings-section">
-          <h3>Upcoming Events</h3>
-          <div id="upcomingEvents"><div class="empty-state">Connect Google Calendar to see events.</div></div>
-        </div>
-
-        <!-- Name Aliases -->
-        <div class="settings-section">
-          <h3>Name Aliases</h3>
-          <p style="font-size:10px;color:var(--text-dim);margin:0 0 4px">Map misspellings to correct names for Gemini.</p>
-          <div class="input-row">
-            <input type="text" class="edit-field" id="aliasFrom" placeholder="Misspelling" />
-            <input type="text" class="edit-field" id="aliasTo" placeholder="Correct Name" />
-            <button class="btn btn-primary btn-small" id="aliasAddBtn">Add</button>
-          </div>
-          <table class="alias-table" id="aliasTable">
-            <thead><tr><th>From</th><th>To</th><th></th></tr></thead>
-            <tbody id="aliasBody"></tbody>
-          </table>
+          <h3>Upcoming Meetings</h3>
+          <div id="upcomingEvents"><div class="empty-state">Connect Google Calendar to see meetings.</div></div>
         </div>
 
         <!-- Sign Out -->
@@ -602,9 +820,6 @@
       <!-- ═══ POST-MEETING PHASE ═══ -->
       <div class="phase-content" id="phasePostContent">
 
-        <!-- Meeting Summary -->
-        <div id="meetingSummary"></div>
-
         <!-- Transcript selector -->
         <div class="section-label">Select Meeting to Review</div>
         <div class="transcript-list" id="transcriptList"></div>
@@ -628,23 +843,32 @@
           </div>
 
           <!-- Filter row -->
-          <div class="filter-row">
-            <div class="field-group" style="flex:1">
-              <label>Priority</label>
-              <select class="edit-field" id="filterPriority">
-                <option value="all">All</option>
-                <option value="High">High</option>
-                <option value="Medium">Medium</option>
-                <option value="Low">Low</option>
+          <div class="filter-row" style="flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; gap:8px; align-items:center; flex:1; min-width:200px;">
+              <label>Filter By</label>
+              <select class="edit-field" id="filterCategory" style="width:100px;">
+                <option value="none">None</option>
+                <option value="owner">Owner</option>
+                <option value="deadline">Deadline</option>
+                <option value="priority">Priority</option>
+                <option value="status">Task Status</option>
               </select>
+              <div id="filterInputsContainer" style="flex:1; display:flex; gap:8px; align-items:center;">
+                <!-- Dynamically injected -->
+              </div>
             </div>
-            <div class="field-group" style="flex:1">
-              <label>Sort</label>
-              <select class="edit-field" id="sortField">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <label>Sort By</label>
+              <select class="edit-field" id="sortCategory" style="width:100px;">
                 <option value="none">None</option>
                 <option value="priority">Priority</option>
                 <option value="deadline">Deadline</option>
                 <option value="owner">Owner</option>
+                <option value="status">Task Status</option>
+              </select>
+              <select class="edit-field" id="sortDir" style="width:100px;">
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
               </select>
             </div>
           </div>
@@ -652,7 +876,27 @@
           <!-- Cards -->
           <div id="actionItemsList"></div>
         </div>
+
+        <!-- ═══ Auto Meeting Summary ═══ -->
+        <div id="autoMeetingSummary" class="hidden">
+          <div class="sep"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0 2px">
+            <div class="section-label" style="padding:0">Meeting Summary</div>
+            <div class="formality-row" style="padding:0;gap:6px;flex:1;margin-left:10px">
+              <span class="formality-label">Casual</span>
+              <input type="range" id="formalitySlider" class="formality-slider" min="0" max="4" value="2" step="1" />
+              <span class="formality-value-label">Formal</span>
+            </div>
+          </div>
+          <!-- Output -->
+          <div id="meetingSummaryOutput"></div>
+        </div>
       </div>
+    </div>
+
+    <!-- Hidden print frame (only visible when printing) -->
+    <div id="print-summary-frame">
+      <div class="print-summary-inner" id="printSummaryContent"></div>
     </div>
 
     <!-- ═══ Nudge Toast ═══ -->
@@ -663,6 +907,8 @@
       </div>
       <div class="nudge-text" id="nudgeText"></div>
     </div>
+
+
 
   </div>
 

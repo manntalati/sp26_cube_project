@@ -2,7 +2,7 @@ import os
 import json
 from google import genai
 from dotenv import load_dotenv
-from routes.settings import load_aliases
+from routes.settings import load_participants
 
 # Try to load from root directory, fallback to current dir
 env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
@@ -58,15 +58,19 @@ def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_
         f"{i+1}. {item}" for i, item in enumerate(raw_action_items)
     ) if raw_action_items else "(none)"
 
-    aliases = load_aliases()
-    alias_instruction = ""
-    if aliases:
-        alias_json = json.dumps(aliases, indent=2)
-        alias_instruction = (
-            f"\nIMPORTANT NAME MAPPING RULES:\n"
-            f"Use the following mapping to correct owner names found in the transcript.\n"
-            f"If you see a name matching a key (case-insensitive or partial match), replace it with the exact value.\n"
-            f"Mapping Table: {alias_json}\n"
+    all_participants_map = load_participants()
+    all_participant_names = list({name for names in all_participants_map.values() for name in names})
+    participant_instruction = ""
+    if all_participant_names:
+        participant_list = ", ".join(all_participant_names)
+        participant_instruction = (
+            f"\nIMPORTANT NAME CORRECTION RULES:\n"
+            f"The following people are known meeting participants: {participant_list}\n"
+            f"When you encounter any person name in the transcript or action items that appears to be\n"
+            f"a misspelling, nickname, abbreviation, or variation of a name in this list,\n"
+            f"replace it with the exact correct spelling from the list.\n"
+            f"Examples: 'Sara' → 'Sarah Chen', 'Mike J' → 'Mike Johnson', 'Priya' → 'Priya Patel'.\n"
+            f"Use case-insensitive fuzzy matching to make this determination.\n"
         )
 
     prompt = f"""You are an AI assistant that reviews meeting transcripts and action items.
@@ -81,18 +85,28 @@ Given the meeting transcript and the list of action items already extracted by a
 3. For existing items, PRESERVE the original wording of descriptions exactly. Do NOT alter the wording. Do NOT prepend verbs.
 4. Set description_flag (non-null string) ONLY if the description is genuinely vague, unclear, or not actionable (e.g. "TBD", "discuss further"). Never flag just for missing a verb.
 5. Set owner_flag (non-null string) if a name in owner looks misspelled or clearly incorrectly assigned. E.g. "'Jon' may be a misspelling of 'John'".
-{alias_instruction}
+6. Analyze the entire meeting transcript and form 2-3 sentences based on what you think is the most important takeaway(s) from the meeting. Provide this summary in 5 different formality levels.
+{participant_instruction}
 ## Output format
-Return ONLY a valid JSON array. No markdown fences, no extra text. Each element:
+Return ONLY a valid JSON object. No markdown fences, no extra text. Format:
 {{
-  "id": <int, 1-based>,
-  "description": "<exact preserved description (or new text for suggested items)>",
-  "description_flag": "<issue string or null>",
-  "owner": ["<name>"],
-  "owner_flag": "<issue string or null>",
-  "deadline": "<YYYY-MM-DD or null>",
-  "gap_notes": ["<gap string>", "<gap string>"],
-  "source": "existing" | "suggested"
+  "tldr_0": "<2-3 sentence casual summary, like 'We wrapped up...'>",
+  "tldr_1": "<2-3 sentence informal summary>",
+  "tldr_2": "<2-3 sentence neutral summary>",
+  "tldr_3": "<2-3 sentence professional summary>",
+  "tldr_4": "<2-3 sentence formal summary>",
+  "items": [
+    {{
+      "id": <int, 1-based>,
+      "description": "<exact preserved description (or new text for suggested items)>",
+      "description_flag": "<issue string or null>",
+      "owner": ["<name>"],
+      "owner_flag": "<issue string or null>",
+      "deadline": "<YYYY-MM-DD or null>",
+      "gap_notes": ["<gap string>", "<gap string>"],
+      "source": "existing" | "suggested"
+    }}
+  ]
 }}
 
 ## Existing action items
@@ -117,10 +131,24 @@ Return ONLY a valid JSON array. No markdown fences, no extra text. Each element:
                 if not line.startswith("```")
             ).strip()
 
-        items = json.loads(text)
-        if not isinstance(items, list):
-            raise ValueError("Gemini did not return a JSON array")
+        parsed_data = json.loads(text)
+        
+        # Backwards compatibility / robustness
+        if isinstance(parsed_data, list):
+            items = parsed_data
+            parsed_data = {
+                "tldr_0": "Summary not available.",
+                "tldr_1": "Summary not available.",
+                "tldr_2": "Summary not available.",
+                "tldr_3": "Summary not available.",
+                "tldr_4": "Summary not available.",
+                "items": items
+            }
+        elif not isinstance(parsed_data, dict) or "items" not in parsed_data:
+            raise ValueError("Gemini did not return a valid JSON object containing 'items'")
 
+        items = parsed_data["items"]
+        
         # Normalise fields for robustness
         for item in items:
             # owner always a list
@@ -147,7 +175,7 @@ Return ONLY a valid JSON array. No markdown fences, no extra text. Each element:
             else:
                 item["gap_notes"] = []
 
-        return True, items
+        return True, parsed_data
 
     except json.JSONDecodeError as e:
         return False, f"Failed to parse Gemini response as JSON: {e}"

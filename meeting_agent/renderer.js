@@ -30,9 +30,10 @@ let calendarEvents = [];
 let selectedTranscriptId = null;
 let actionItems = [];
 let activeActionTab = 'pending';
-let filterPriority = 'all';
-let sortField = 'none';
-let aliases = {};
+let filterConfigs = { category: 'none', values: [], dateStart: '', dateEnd: '' };
+let sortConfigs = { category: 'none', dir: 'asc' };
+let meetingParticipants = {}; // { eventId: ['Name', ...] }
+let expandedMeetingId = null;
 
 let analysisPollingInterval = null;
 
@@ -157,8 +158,8 @@ $('gearBtn').addEventListener('click', () => {
 function renderPreMeeting() {
   renderConnectionStatus();
   renderPreBanner();
-  renderUpcomingEvents();
-  loadAliases();
+  renderUpcomingMeetings();
+  loadParticipants();
   requestResize();
 }
 
@@ -266,7 +267,7 @@ $('calDisconnectBtn').addEventListener('click', async () => {
   await API.disconnectCalendar();
   await refreshAuthStatus();
   calendarEvents = [];
-  renderUpcomingEvents();
+  renderUpcomingMeetings();
 });
 
 $('gemConnectBtn').addEventListener('click', async () => {
@@ -294,78 +295,131 @@ $('signoutBtn').addEventListener('click', async () => {
   renderPreMeeting();
 });
 
-// ── Upcoming Events ──────────────────────────────────────────────────────────
-async function renderUpcomingEvents() {
+// ── Upcoming Meetings ─────────────────────────────────────────────────────────
+async function renderUpcomingMeetings() {
   const container = $('upcomingEvents');
   if (!connections.calendar) {
-    container.innerHTML = '<div class="empty-state">Connect Google Calendar to see events.</div>';
+    container.innerHTML = '<div class="empty-state">Connect Google Calendar to see meetings.</div>';
     requestResize();
     return;
   }
-  container.innerHTML = '<div class="loading-state">Loading events...</div>';
+  container.innerHTML = '<div class="loading-state">Loading meetings...</div>';
   try {
     const data = await API.getCalendarEvents();
     if (data.success && data.events?.length > 0) {
       calendarEvents = data.events;
-      container.innerHTML = data.events.slice(0, 5).map(ev => {
-        const time = ev.start.includes('T')
-          ? new Date(ev.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          : 'All Day';
-        const date = new Date(ev.start).toLocaleDateString([], { month: 'short', day: 'numeric' });
-        return `<div class="event-row">
-          <span class="event-time">${time}</span>
-          <span class="event-title">${escHtml(ev.title)}</span>
-          <span class="event-date">${date}</span>
-        </div>`;
-      }).join('');
+      container.innerHTML = '';
+      data.events.forEach(ev => {
+        const card = buildMeetingCard(ev);
+        container.appendChild(card);
+      });
     } else {
-      container.innerHTML = '<div class="empty-state">No upcoming events.</div>';
+      container.innerHTML = '<div class="empty-state">No upcoming meetings in the next 30 days.</div>';
     }
   } catch (e) {
-    container.innerHTML = '<div class="empty-state">Failed to load events.</div>';
+    container.innerHTML = '<div class="empty-state">Failed to load meetings.</div>';
   }
   requestResize();
 }
 
-// ── Aliases ──────────────────────────────────────────────────────────────────
-async function loadAliases() {
-  try {
-    const data = await API.getAliases();
-    if (data.success) { aliases = data.aliases || {}; renderAliases(); }
-  } catch (e) { /* silent */ }
-}
+function buildMeetingCard(ev) {
+  const card = document.createElement('div');
+  card.className = `meeting-card${expandedMeetingId === ev.id ? ' expanded' : ''}`;
+  card.dataset.eventId = ev.id;
 
-function renderAliases() {
-  const tbody = $('aliasBody');
-  tbody.innerHTML = '';
-  const entries = Object.entries(aliases);
-  if (entries.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text-dim);font-size:10px;text-align:center;padding:8px">No aliases defined</td></tr>';
-    return;
-  }
-  entries.forEach(([from, to]) => {
-    const row = document.createElement('tr');
-    row.innerHTML = `<td class="alias-from">${escHtml(from)}</td><td class="alias-to">${escHtml(to)}</td><td><button class="alias-remove" data-key="${escAttr(from)}">×</button></td>`;
-    tbody.appendChild(row);
+  const time = ev.start?.includes('T')
+    ? new Date(ev.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : 'All Day';
+  const date = new Date(ev.start).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  const participants = meetingParticipants[ev.id] || [];
+  const attendeeStr = ev.attendee_count > 0 ? `${ev.attendee_count} attendee${ev.attendee_count !== 1 ? 's' : ''}` : '';
+
+  card.innerHTML = `
+    <div class="meeting-card-header">
+      <span class="meeting-card-time">${time}</span>
+      <span class="meeting-card-title">${escHtml(ev.title)}</span>
+      <span class="meeting-card-date">${date}</span>
+      <span class="meeting-card-chevron">▾</span>
+    </div>
+    <div class="meeting-card-body">
+      <div class="meeting-participants-label">👥 Participants</div>
+      <div class="participant-tag-container" data-event-id="${escAttr(ev.id)}">
+        ${participants.map((p, i) => `<span class="participant-chip"><span>${escHtml(p)}</span><button class="participant-remove" data-event-id="${escAttr(ev.id)}" data-idx="${i}">×</button></span>`).join('')}
+        <input class="participant-text-input" data-event-id="${escAttr(ev.id)}" placeholder="${participants.length ? '' : 'Add name, press Enter'}" />
+      </div>
+      ${attendeeStr ? `<div class="meeting-attendee-count">${attendeeStr} on calendar</div>` : ''}
+    </div>
+  `;
+
+  // Toggle expand
+  card.querySelector('.meeting-card-header').addEventListener('click', () => {
+    const wasExpanded = card.classList.contains('expanded');
+    expandedMeetingId = wasExpanded ? null : ev.id;
+    card.classList.toggle('expanded', !wasExpanded);
+    if (!wasExpanded) card.querySelector('.participant-text-input')?.focus();
+    requestResize();
   });
-  tbody.querySelectorAll('.alias-remove').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      delete aliases[btn.dataset.key];
-      await API.saveAliases(aliases);
-      renderAliases();
+
+  // Remove participant chip
+  card.querySelectorAll('.participant-remove').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const eid = btn.dataset.eventId;
+      const idx = parseInt(btn.dataset.idx);
+      if (!meetingParticipants[eid]) return;
+      meetingParticipants[eid].splice(idx, 1);
+      await API.saveParticipants(meetingParticipants);
+      renderUpcomingMeetings();
     });
   });
+
+  // Add participant via Enter or comma
+  const textInput = card.querySelector('.participant-text-input');
+  textInput.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      await addParticipant(ev.id, textInput.value);
+      textInput.value = '';
+      expandedMeetingId = ev.id;
+      renderUpcomingMeetings();
+    } else if (e.key === 'Backspace' && textInput.value === '') {
+      const names = meetingParticipants[ev.id] || [];
+      if (names.length > 0) {
+        names.pop();
+        meetingParticipants[ev.id] = names;
+        await API.saveParticipants(meetingParticipants);
+        expandedMeetingId = ev.id;
+        renderUpcomingMeetings();
+      }
+    }
+  });
+  textInput.addEventListener('blur', async () => {
+    if (textInput.value.trim()) {
+      await addParticipant(ev.id, textInput.value);
+      textInput.value = '';
+      expandedMeetingId = ev.id;
+      renderUpcomingMeetings();
+    }
+  });
+
+  return card;
 }
 
-$('aliasAddBtn').addEventListener('click', async () => {
-  const from = $('aliasFrom').value.trim();
-  const to = $('aliasTo').value.trim();
-  if (!from || !to) return;
-  aliases[from] = to;
-  await API.saveAliases(aliases);
-  $('aliasFrom').value = ''; $('aliasTo').value = '';
-  renderAliases();
-});
+async function addParticipant(eventId, raw) {
+  const names = raw.split(',').map(s => s.trim()).filter(Boolean);
+  if (!names.length) return;
+  if (!meetingParticipants[eventId]) meetingParticipants[eventId] = [];
+  names.forEach(n => { if (!meetingParticipants[eventId].includes(n)) meetingParticipants[eventId].push(n); });
+  await API.saveParticipants(meetingParticipants);
+}
+
+// ── Participants ─────────────────────────────────────────────────────────────
+async function loadParticipants() {
+  try {
+    const data = await API.getParticipants();
+    if (data.success) { meetingParticipants = data.participants || {}; }
+  } catch (e) { /* silent */ }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PHASE 2: IN-MEETING
@@ -575,11 +629,11 @@ setInterval(updateTimer, 1000);
 // PHASE 3: POST-MEETING
 // ═══════════════════════════════════════════════════════════════════════════════
 function renderPostMeeting() {
-  renderMeetingSummary();
   renderTranscriptList();
   if (selectedTranscriptId) {
     $('actionItemsPanel').classList.remove('hidden');
     renderActionItems();
+    renderAutoSummary();
   }
   requestResize();
 }
@@ -717,11 +771,15 @@ function renderTranscriptList() {
       </div>
       <span class="status-dot ${statusClass}" title="${statusClass}"></span>
     `;
-    row.addEventListener('click', () => selectTranscript(t.id));
+    row.addEventListener('click', (e) => {
+      selectTranscript(t.id);
+    });
     list.appendChild(row);
   });
   requestResize();
 }
+
+
 
 async function selectTranscript(tid) {
   selectedTranscriptId = tid;
@@ -734,18 +792,27 @@ async function selectTranscript(tid) {
   if (analysis?.status === 'ready' && Array.isArray(analysis.items)) {
     actionItems = normalizeItems(analysis.items);
     renderActionItems();
-    renderMeetingSummary();
+    renderAutoSummary();
   } else {
     actionItems = [];
     renderActionItems();
-    $('actionItemsList').innerHTML = '<div class="loading-state">Analyzing meeting with Gemini...</div>';
-    try {
-      await API.enqueueAnalysis(tid);
-      await pollUntilReady(tid);
-      renderMeetingSummary();
-    } catch (e) {
-      $('actionItemsList').innerHTML = `<div class="empty-state" style="color:var(--red)">${escHtml(e.message)}</div>`;
-    }
+    renderAutoSummary();
+    $('actionItemsList').innerHTML = `
+      <div class="empty-state">
+        <p style="margin-bottom: 16px; font-size:13px; color:var(--text);">Ensure participants are correctly set in the Pre-Meeting tab before analyzing.</p>
+        <button class="btn btn-primary" id="startGenBtn">Start Gemini Analysis</button>
+      </div>
+    `;
+    $('startGenBtn').addEventListener('click', async () => {
+      $('actionItemsList').innerHTML = '<div class="loading-state">Analyzing meeting with Gemini...</div>';
+      try {
+        await API.enqueueAnalysis(tid);
+        await pollUntilReady(tid);
+        renderAutoSummary();
+      } catch (e) {
+        $('actionItemsList').innerHTML = `<div class="empty-state" style="color:var(--red)">${escHtml(e.message)}</div>`;
+      }
+    });
   }
   requestResize();
 }
@@ -756,6 +823,7 @@ async function pollUntilReady(tid, maxMs = 120000) {
     const data = await API.getAnalysisStatus(tid);
     const analysis = data.analysis;
     if (analysis?.status === 'ready' && Array.isArray(analysis.items)) {
+      analysisById[tid] = analysis;
       actionItems = normalizeItems(analysis.items);
       renderActionItems();
       return;
@@ -786,10 +854,74 @@ $('aiSubtabs').addEventListener('click', (e) => {
   renderActionItems();
 });
 
-$('filterPriority').addEventListener('change', (e) => { filterPriority = e.target.value; renderActionItems(); });
-$('sortField').addEventListener('change', (e) => { sortField = e.target.value; renderActionItems(); });
+$('filterCategory').addEventListener('change', (e) => { 
+  filterConfigs.category = e.target.value; 
+  filterConfigs.values = []; filterConfigs.dateStart = ''; filterConfigs.dateEnd = ''; 
+  renderFilterInputs(); 
+  renderActionItems(); 
+});
+$('sortCategory').addEventListener('change', (e) => { sortConfigs.category = e.target.value; renderActionItems(); });
+$('sortDir').addEventListener('change', (e) => { sortConfigs.dir = e.target.value; renderActionItems(); });
 $('pushCalendarBtn').addEventListener('click', handlePushToCalendar);
 $('createItemBtn').addEventListener('click', handleCreateItem);
+
+function renderFilterInputs() {
+  const container = $('filterInputsContainer');
+  if (filterConfigs.category === 'none') { container.innerHTML = ''; return; }
+  
+  if (filterConfigs.category === 'deadline') {
+    container.innerHTML = `
+      <input type="date" class="edit-field" id="filterDateStart" title="Start Date" />
+      <span>-</span>
+      <input type="date" class="edit-field" id="filterDateEnd" title="End Date" />
+    `;
+    $('filterDateStart').addEventListener('change', (e) => { filterConfigs.dateStart = e.target.value; renderActionItems(); });
+    $('filterDateEnd').addEventListener('change', (e) => { filterConfigs.dateEnd = e.target.value; renderActionItems(); });
+  } else {
+    let options = [];
+    if (filterConfigs.category === 'priority') options = ['High', 'Medium', 'Low'];
+    else if (filterConfigs.category === 'status') options = ['Not Started', 'In Progress', 'Completed'];
+    else if (filterConfigs.category === 'owner') {
+      options = [...new Set(actionItems.flatMap(i => i.owner || []))].filter(Boolean);
+      options.push('Unassigned');
+    }
+    
+    container.innerHTML = `
+      <div class="multi-select-container">
+        <button class="multi-select-button" id="filterMultiSelectBtn">Select options...</button>
+        <div class="multi-select-dropdown" id="filterMultiSelectDropdown">
+          ${options.map(o => `
+            <label class="multi-select-option">
+              <input type="checkbox" value="${escAttr(o)}" /> ${escHtml(o)}
+            </label>
+          `).join('')}
+        </div>
+      </div>
+    `;
+
+    const btn = $('filterMultiSelectBtn');
+    const dropdown = $('filterMultiSelectDropdown');
+    const updateBtnText = () => {
+      btn.textContent = filterConfigs.values.length ? filterConfigs.values.join(', ') : 'Select options...';
+    };
+    
+    btn.addEventListener('click', (e) => { e.stopPropagation(); dropdown.classList.toggle('show'); });
+    dropdown.addEventListener('click', (e) => e.stopPropagation());
+    dropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) filterConfigs.values.push(cb.value);
+        else filterConfigs.values = filterConfigs.values.filter(v => v !== cb.value);
+        updateBtnText();
+        renderActionItems();
+      });
+    });
+    // Remove click listener when re-rendering but need a global closer too
+  }
+}
+document.addEventListener('click', () => {
+  const dropdown = $('filterMultiSelectDropdown');
+  if (dropdown) dropdown.classList.remove('show');
+});
 
 function renderActionItems() {
   $('countPending').textContent = actionItems.filter(i => i.status === 'pending').length;
@@ -803,23 +935,48 @@ function renderActionItems() {
   $('approvedToolbar').classList.toggle('hidden', activeActionTab !== 'approved');
 
   let filtered = actionItems.filter(i => i.status === activeActionTab);
-  if (filterPriority !== 'all') filtered = filtered.filter(i => (i.priority || '') === filterPriority);
 
-  if (sortField !== 'none') {
-    const rank = (p) => ({ 'High': 0, 'Medium': 1, 'Low': 2 }[p] ?? 3);
+  if (filterConfigs.category !== 'none') {
+    if (filterConfigs.category === 'deadline') {
+      const s = filterConfigs.dateStart ? new Date(filterConfigs.dateStart).getTime() : -Infinity;
+      const e = filterConfigs.dateEnd ? new Date(filterConfigs.dateEnd).getTime() : Infinity;
+      filtered = filtered.filter(i => {
+        if (!i.deadline) return false;
+        const d = new Date(i.deadline).getTime();
+        return d >= s && d <= e;
+      });
+    } else if (filterConfigs.values.length > 0) {
+      filtered = filtered.filter(i => {
+        if (filterConfigs.category === 'priority') return filterConfigs.values.includes(i.priority || '');
+        if (filterConfigs.category === 'status') return filterConfigs.values.includes(i.task_status || 'Not Started');
+        if (filterConfigs.category === 'owner') {
+          const owners = i.owner?.length ? i.owner : ['Unassigned'];
+          return owners.some(o => filterConfigs.values.includes(o));
+        }
+        return true;
+      });
+    }
+  }
+
+  if (sortConfigs.category !== 'none') {
+    const dir = sortConfigs.dir === 'asc' ? 1 : -1;
+    const rankPriority = (p) => ({ 'High': 0, 'Medium': 1, 'Low': 2 }[p] ?? 3);
+    const rankStatus = (s) => ({ 'Completed': 0, 'In Progress': 1, 'Not Started': 2 }[s] ?? 3);
+    
     filtered.sort((a, b) => {
-      if (sortField === 'priority') return rank(a.priority || '') - rank(b.priority || '');
-      if (sortField === 'deadline') {
+      let cmp = 0;
+      if (sortConfigs.category === 'priority') cmp = rankPriority(a.priority) - rankPriority(b.priority);
+      else if (sortConfigs.category === 'status') cmp = rankStatus(a.task_status) - rankStatus(b.task_status);
+      else if (sortConfigs.category === 'deadline') {
         const ad = a.deadline ? Date.parse(a.deadline) : Infinity;
         const bd = b.deadline ? Date.parse(b.deadline) : Infinity;
-        return ad - bd;
-      }
-      if (sortField === 'owner') {
+        cmp = ad - bd;
+      } else if (sortConfigs.category === 'owner') {
         const av = (a.owner?.[0] || '\uFFFF').toLowerCase();
         const bv = (b.owner?.[0] || '\uFFFF').toLowerCase();
-        return av < bv ? -1 : av > bv ? 1 : 0;
+        cmp = av < bv ? -1 : av > bv ? 1 : 0;
       }
-      return 0;
+      return cmp * dir;
     });
   }
 
@@ -842,7 +999,8 @@ function buildActionCard(item) {
   const card = document.createElement('div');
   card.className = 'ai-card';
 
-  let headerHtml = `<span class="source-badge ${item.source === 'suggested' ? 'suggested' : ''}">${item.source === 'suggested' ? '✨ New' : '📝 Transcript'}</span>`;
+  const sourceText = item.source === 'manual' ? '✨ New Action Item' : (item.source === 'suggested' ? '✨ New' : '📝 Transcript');
+  let headerHtml = `<span class="source-badge ${item.source === 'suggested' || item.source === 'manual' ? 'suggested' : ''}">${sourceText}</span>`;
   (item.gap_notes || []).forEach(gap => {
     headerHtml += `<span class="flag-badge gap-flag" title="${escAttr(gap)}">⚠️<span class="flag-text">${escHtml(gap)}</span></span>`;
   });
@@ -862,7 +1020,10 @@ function buildActionCard(item) {
       </div>
       <div class="field-group">
         <label>Deadline</label>
-        <input type="date" class="edit-field" value="${item.deadline || ''}" data-id="${item.id}" data-field="deadline" />
+        <div style="display:flex;gap:4px;">
+          <input type="date" class="edit-field" value="${item.deadline || ''}" data-id="${item.id}" data-field="deadline" style="flex:1;" />
+          <input type="time" class="edit-field" value="${item.time || ''}" data-id="${item.id}" data-field="time" style="flex:1;" />
+        </div>
       </div>
       <div class="field-group">
         <label>Priority</label>
@@ -887,7 +1048,9 @@ function buildActionCard(item) {
     <div class="ai-actions">
       ${activeActionTab === 'pending'
         ? `<button class="btn btn-approve" data-id="${item.id}" data-action="approved">✓ Approve</button><button class="btn btn-reject" data-id="${item.id}" data-action="rejected">✕ Reject</button>`
-        : `<button class="btn btn-undo" data-id="${item.id}" data-action="pending">↩ Undo</button>`}
+        : (item.source === 'manual' 
+             ? `<button class="btn btn-reject" data-id="${item.id}" data-action="delete">🗑 Delete</button>` 
+             : `<button class="btn btn-undo" data-id="${item.id}" data-action="pending">↩ Undo</button>`)}
     </div>
   `;
 
@@ -940,11 +1103,16 @@ function editItem(id, field, value) {
 }
 
 function setItemStatus(id, status) {
+  if (status === 'delete') {
+    actionItems = actionItems.filter(i => i.id !== id);
+    saveAndRender();
+    return;
+  }
   const item = actionItems.find(i => i.id === id);
   if (item) { item.status = status; saveAndRender(); }
 }
 
-function saveAndRender() { saveState(); renderActionItems(); renderMeetingSummary(); }
+function saveAndRender() { saveState(); renderActionItems(); renderAutoSummary(); }
 
 async function saveState() {
   if (!selectedTranscriptId) return;
@@ -984,7 +1152,26 @@ async function handlePushToCalendar() {
       }
 
       const ownerStr = item.owner?.join(', ') || 'Unassigned';
-      const desc = `${item.description}\n\nOwner(s): ${ownerStr}\nDeadline: ${item.deadline || 'None'}\nPriority: ${item.priority || 'N/A'}`;
+      let deadlineStr = item.deadline || 'None';
+      if (item.deadline) {
+        const dateObj = new Date(item.deadline + 'T00:00:00'); // Ensure local date
+        const day = dateObj.getDate();
+        const suffixes = ["th", "st", "nd", "rd"];
+        const v = day % 100;
+        const suffix = (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
+        const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        deadlineStr = `${months[dateObj.getMonth()]} ${day}${suffix}, ${dateObj.getFullYear()}`;
+        
+        if (item.time) {
+          const [h, m] = item.time.split(':');
+          const hInt = parseInt(h, 10);
+          const ampm = hInt >= 12 ? 'PM' : 'AM';
+          const h12 = hInt % 12 || 12;
+          deadlineStr += ` @ ${h12}:${m} ${ampm}`;
+        }
+      }
+
+      const desc = `${item.description}\n\nOwner(s): ${ownerStr}\nDeadline: ${deadlineStr}\nPriority: ${item.priority || 'N/A'}`;
       const isUpdate = !!item.event_id;
       const data = isUpdate
         ? await API.updateCalendarEvent(item.event_id, { summary: (item.description || '').substring(0, 50), description: desc, start_time: startDate, end_time: endDate })
@@ -1004,13 +1191,271 @@ async function handlePushToCalendar() {
 function handleCreateItem() {
   const newItem = {
     id: Math.max(0, ...actionItems.map(i => i.id)) + 1,
-    description: '', owner: [], deadline: '', deadline_time: '',
+    description: '', owner: [], deadline: '', time: '',
     priority: 'Medium', task_status: 'Not Started', status: 'approved', source: 'manual'
   };
   actionItems.push(newItem);
   activeActionTab = 'approved';
   saveAndRender();
+  renderSummaryGenerator();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GENERATE MEETING SUMMARY
+// ═══════════════════════════════════════════════════════════════════════════════
+let generatedSummaryData = null;
+
+const FORMALITY_LABELS = ['Casual', 'Informal', 'Neutral', 'Professional', 'Formal'];
+
+const FORMALITY_PHRASES = [
+  // Level 0: Casual
+  {
+    tldrPrefix: "Quick recap:",
+    decisionIntro: "Here's what we decided:",
+    questionIntro: "Still up in the air:",
+    nextStepsIntro: "Next up:",
+    ownerPrefix: "→",
+    deadlinePrefix: "due",
+  },
+  // Level 1: Informal
+  {
+    tldrPrefix: "Here's the gist:",
+    decisionIntro: "Decisions from the meeting:",
+    questionIntro: "Open items:",
+    nextStepsIntro: "What's next:",
+    ownerPrefix: "Owner:",
+    deadlinePrefix: "by",
+  },
+  // Level 2: Neutral
+  {
+    tldrPrefix: "Summary:",
+    decisionIntro: "The following decisions were made:",
+    questionIntro: "The following questions remain open:",
+    nextStepsIntro: "Next steps:",
+    ownerPrefix: "Owner:",
+    deadlinePrefix: "Deadline:",
+  },
+  // Level 3: Professional
+  {
+    tldrPrefix: "Executive Summary:",
+    decisionIntro: "The following key decisions were finalized:",
+    questionIntro: "The following items require further resolution:",
+    nextStepsIntro: "Action items and next steps:",
+    ownerPrefix: "Assigned to:",
+    deadlinePrefix: "Due date:",
+  },
+  // Level 4: Formal
+  {
+    tldrPrefix: "Meeting Synopsis:",
+    decisionIntro: "The convened parties reached consensus on the following:",
+    questionIntro: "The following matters remain unresolved and require follow-up:",
+    nextStepsIntro: "Prioritized action items requiring completion:",
+    ownerPrefix: "Responsible party:",
+    deadlinePrefix: "Completion target:",
+  },
+];
+
+function renderAutoSummary() {
+  const section = $('autoMeetingSummary');
+  if (!selectedTranscriptId) {
+    section.classList.add('hidden');
+    requestResize();
+    return;
+  }
+  section.classList.remove('hidden');
+  const level = getFormalityLevel();
+  generatedSummaryData = buildSummaryData(level);
+  renderSummaryOutput(generatedSummaryData);
+  requestResize();
+}
+
+function getFormalityLevel() {
+  return parseInt($('formalitySlider').value);
+}
+
+function buildSummaryData(level) {
+  const phrases = FORMALITY_PHRASES[level];
+  const approvedItems = actionItems.filter(i => i.status === 'approved');
+
+  // Sort by priority
+  const priorityRank = { 'High': 0, 'Medium': 1, 'Low': 2 };
+  const sortedItems = [...approvedItems].sort((a, b) =>
+    (priorityRank[a.priority] ?? 3) - (priorityRank[b.priority] ?? 3)
+  );
+
+  const openQs = agendaData.filter(i => !i.covered && !i.archived);
+  const openQuestions = openQs.map(q => q.text);
+
+  // TL;DR from Gemini
+  const tldrs = analysisById[selectedTranscriptId]?.tldrs || {};
+  let tldr = tldrs[`tldr_${level}`];
+
+  if (!tldr && actionItems.length === 0) {
+    const transcript = transcripts.find(t => t.id === selectedTranscriptId);
+    const meetingName = transcript?.title || 'this meeting';
+    tldr = `"${meetingName}" is being analyzed. Please wait...`;
+  } else if (!tldr) {
+    tldr = 'Gemini TL;DR not available for this transcript.';
+  }
+
+  return {
+    tldr,
+    openQuestions,
+    nextSteps: sortedItems,
+    phrases,
+    level,
+  };
+}
+
+function summaryToPlainText(data) {
+  const p = data.phrases;
+  let lines = [];
+  lines.push('MEETING SUMMARY');
+  lines.push('================');
+  lines.push('');
+  lines.push('TL;DR');
+  lines.push(data.tldr);
+  lines.push('');
+  lines.push('OPEN QUESTIONS');
+  if (data.openQuestions.length > 0) {
+    data.openQuestions.forEach(q => lines.push(`• ${q}`));
+  } else {
+    lines.push('• None — all agenda topics were addressed.');
+  }
+  lines.push('');
+  lines.push('NEXT STEPS');
+  if (data.nextSteps.length > 0) {
+    data.nextSteps.forEach((item, idx) => {
+      const owners = item.owner?.length ? item.owner.join(', ') : 'TBD';
+      const deadline = item.deadline ? ` | ${p.deadlinePrefix} ${item.deadline}` : '';
+      const priority = item.priority ? `[${item.priority}] ` : '';
+      lines.push(`${idx + 1}. ${priority}${item.description}`);
+      lines.push(`   ${p.ownerPrefix} ${owners}${deadline}`);
+    });
+  } else {
+    lines.push('• No approved action items.');
+  }
+  return lines.join('\n');
+}
+
+function renderSummaryOutput(data) {
+  const container = $('meetingSummaryOutput');
+  const p = data.phrases;
+
+  // Priority chip class
+  const chipClass = (priority) => {
+    if (priority === 'High') return 'priority-chip-high';
+    if (priority === 'Medium') return 'priority-chip-medium';
+    if (priority === 'Low') return 'priority-chip-low';
+    return 'priority-chip-none';
+  };
+
+  const openQHtml = data.openQuestions.length > 0
+    ? `<ul class="summary-list">${data.openQuestions.map(q => `<li>${escHtml(q)}</li>`).join('')}</ul>`
+    : `<div class="summary-empty-section">None — all agenda topics were addressed.</div>`;
+
+  const nextStepsHtml = data.nextSteps.length > 0
+    ? data.nextSteps.map((item, idx) => {
+        const owners = item.owner?.length ? item.owner.join(', ') : 'TBD';
+        const deadline = item.deadline ? ` · ${p.deadlinePrefix} ${item.deadline}` : '';
+        const priority = item.priority || '--';
+        return `
+          <div class="summary-next-item">
+            <span class="summary-next-priority ${chipClass(item.priority)}">${escHtml(priority)}</span>
+            <div class="summary-next-body">
+              <div class="summary-next-desc">${escHtml(item.description || 'Untitled task')}</div>
+              <div class="summary-next-meta">${escHtml(p.ownerPrefix)} ${escHtml(owners)}${escHtml(deadline)}</div>
+            </div>
+          </div>`;
+      }).join('')
+    : `<div class="summary-empty-section">No approved action items yet.</div>`;
+
+  container.innerHTML = `
+    <div class="summary-output">
+      <div class="summary-section">
+        <div class="summary-tldr">${escHtml(data.tldr)}</div>
+      </div>
+
+      <div class="summary-section">
+        <div class="summary-section-title">❓ Open Questions</div>
+        ${openQHtml}
+      </div>
+
+      <div class="summary-section">
+        <div class="summary-section-title">✅ Next Steps (by priority)</div>
+        ${nextStepsHtml}
+      </div>
+
+      <div class="summary-export-row">
+        <button class="btn-clipboard" id="copyClipboardBtn">📋 Copy to Clipboard</button>
+        <button class="btn-pdf" id="exportPdfBtn">⬇ Export PDF</button>
+      </div>
+    </div>
+  `;
+
+  // Wire export buttons
+  $('copyClipboardBtn').addEventListener('click', () => copyToClipboard(data));
+  $('exportPdfBtn').addEventListener('click', () => exportAsPDF(data));
+
+  requestResize();
+}
+
+function copyToClipboard(data) {
+  const text = summaryToPlainText(data);
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = $('copyClipboardBtn');
+    if (!btn) return;
+    btn.textContent = '✓ Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '📋 Copy to Clipboard'; btn.classList.remove('copied'); }, 2000);
+  }).catch(() => {
+    // Fallback for environments without clipboard API
+    const ta = document.createElement('textarea');
+    ta.value = summaryToPlainText(data);
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const btn = $('copyClipboardBtn');
+    if (btn) { btn.textContent = '✓ Copied!'; btn.classList.add('copied'); setTimeout(() => { btn.textContent = '📋 Copy to Clipboard'; btn.classList.remove('copied'); }, 2000); }
+  });
+}
+
+function exportAsPDF(data) {
+  // Build a print-friendly version in the hidden print frame
+  const p = data.phrases;
+  const openQLines = data.openQuestions.length > 0
+    ? data.openQuestions.map(q => `<li>${escHtml(q)}</li>`).join('')
+    : '<li><em>None — all agenda topics were addressed.</em></li>';
+  const nextStepsLines = data.nextSteps.length > 0
+    ? data.nextSteps.map((item, idx) => {
+        const owners = item.owner?.length ? item.owner.join(', ') : 'TBD';
+        const deadline = item.deadline ? ` | ${p.deadlinePrefix} ${item.deadline}` : '';
+        const priority = item.priority || '--';
+        return `<div class="print-next-item"><span class="print-priority">[${escHtml(priority)}]</span> ${escHtml(item.description || 'Untitled task')}<br><small>${escHtml(p.ownerPrefix)} ${escHtml(owners)}${escHtml(deadline)}</small></div>`;
+      }).join('')
+    : '<p><em>No approved action items.</em></p>';
+
+  const now = new Date().toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' });
+  $('printSummaryContent').innerHTML = `
+    <h1>Meeting Summary</h1>
+    <div class="print-meta">Generated ${now} &nbsp;·&nbsp; Tone: ${FORMALITY_LABELS[data.level]}</div>
+    <h2>TL;DR</h2>
+    <p>${escHtml(data.tldr)}</p>
+    <h2>Open Questions</h2>
+    <ul>${openQLines}</ul>
+    <h2>Next Steps (prioritized)</h2>
+    ${nextStepsLines}
+  `;
+
+  window.print();
+}
+
+// Formality slider — always re-renders the auto summary
+$('formalitySlider').addEventListener('input', () => {
+  if (selectedTranscriptId) requestAnimationFrame(renderAutoSummary);
+});
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // INTEGRATION API (for external callers — same as original overlay)
@@ -1074,6 +1519,68 @@ const DEMO_COVER_SCRIPT = [
 
 $('demoBtn').addEventListener('click', toggleDemo);
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DEMO SUMMARY DATA
+// ─────────────────────────────────────────────────────────────────────────────
+const DEMO_APPROVED_ITEMS = [
+  {
+    id: 101, description: 'Finalize Q3 revenue model and share with leadership team',
+    owner: ['Alex Chen'], deadline: '2026-04-18', priority: 'High',
+    status: 'approved', task_status: 'Not Started', source: 'transcript',
+    gap_notes: [], description_flag: null, owner_flag: null,
+  },
+  {
+    id: 102, description: 'Complete vendor evaluation for analytics platform and submit recommendation',
+    owner: ['Maria Lopez', 'Sam Park'], deadline: '2026-04-25', priority: 'High',
+    status: 'approved', task_status: 'Not Started', source: 'transcript',
+    gap_notes: [], description_flag: null, owner_flag: null,
+  },
+  {
+    id: 103, description: 'Confirm staging migration timeline with DevOps and update project board',
+    owner: ['Jordan Wu'], deadline: '2026-04-15', priority: 'Medium',
+    status: 'approved', task_status: 'Not Started', source: 'transcript',
+    gap_notes: [], description_flag: null, owner_flag: null,
+  },
+  {
+    id: 104, description: 'Send finalized customer interview script to UX team for review',
+    owner: ['Priya Singh'], deadline: '2026-04-14', priority: 'Medium',
+    status: 'approved', task_status: 'Not Started', source: 'suggested',
+    gap_notes: [], description_flag: null, owner_flag: null,
+  },
+  {
+    id: 105, description: 'Draft fallback plan for feature freeze delay and circulate for comments',
+    owner: ['Alex Chen', 'Jordan Wu'], deadline: '2026-04-21', priority: 'Low',
+    status: 'approved', task_status: 'Not Started', source: 'transcript',
+    gap_notes: [], description_flag: null, owner_flag: null,
+  },
+];
+
+function buildDemoSummaryData(level) {
+  const phrases = FORMALITY_PHRASES[level];
+  const tldrByLevel = [
+    `Quick recap: The Q3 planning sync ran about 42 min and we locked in 5 action items. We hit 3 of 5 agenda topics and 2 things still need follow-up.`,
+    `Here's the gist: The team met for ~42 minutes for Q3 planning. We walked through 7 action items, approving 5. Covered 3 of 5 agenda topics with 2 still open.`,
+    `This Q3 planning meeting (approx. 42 min) resulted in 5 approved action items from 7 under review. 3 of 5 agenda questions were addressed; 2 remain open.`,
+    `This Q3 planning session (approximately 42 minutes) produced 5 approved action items for follow-through. 3 of 5 agenda topics received substantive discussion; 2 items require further deliberation.`,
+    `The convened Q3 planning meeting (approximately 42 minutes) concluded with 5 formally approved action items selected from 7 candidate items under review. 3 of 5 agenda points received substantive discussion; 2 points remain unresolved and necessitate subsequent follow-up.`,
+  ];
+  return {
+    tldr: tldrByLevel[level],
+    decisions: [
+      'Proceed with Q3 revenue target of $4.2M, aligned with leadership expectations.',
+      'Analytics platform vendor evaluation will be led by Maria Lopez and Sam Park.',
+      'Staging migration is scheduled for April 20th — DevOps to confirm by April 15th.',
+    ],
+    openQuestions: [
+      'Is the customer interview script ready for the onboarding research sprint?',
+      'What is the fallback plan if we miss the feature freeze date?',
+    ],
+    nextSteps: DEMO_APPROVED_ITEMS,
+    phrases,
+    level,
+  };
+}
+
 async function toggleDemo() {
   if (demoActive) {
     await stopDemo();
@@ -1132,10 +1639,25 @@ async function startDemo() {
         phaseNav.classList.add('show');
 
         // Auto-select the first transcript after a brief pause
-        demoTimers.push(setTimeout(() => {
+        demoTimers.push(setTimeout(async () => {
           if (demoActive && transcripts.length > 0) {
-            selectTranscript(transcripts[0].id);
+            await selectTranscript(transcripts[0].id);
           }
+          // Inject demo approved items so the Generate button appears
+          demoTimers.push(setTimeout(() => {
+            if (demoActive) {
+              // Merge demo approved items into actionItems
+              DEMO_APPROVED_ITEMS.forEach(di => {
+                if (!actionItems.find(ai => ai.id === di.id)) {
+                  actionItems.push({ ...di });
+                }
+              });
+              activeActionTab = 'approved';
+              renderActionItems();
+              renderSummaryGenerator();
+              requestResize();
+            }
+          }, 800));
         }, 1500));
       }
     }, 42 * 1000));

@@ -3,8 +3,13 @@ import os
 from flask import Blueprint, jsonify, request
 
 settings_bp = Blueprint('settings', __name__)
-ALIASES_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'aliases.json')
 
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+ALIASES_FILE = os.path.join(DATA_DIR, 'aliases.json')
+PARTICIPANTS_FILE = os.path.join(DATA_DIR, 'participants.json')
+
+
+# ── Aliases (kept for backward compat, no longer used in UI) ──────────────────
 def load_aliases():
     if not os.path.exists(ALIASES_FILE):
         return {}
@@ -15,21 +20,45 @@ def load_aliases():
             return {}
 
 def save_aliases(aliases):
-    os.makedirs(os.path.dirname(ALIASES_FILE), exist_ok=True)
+    os.makedirs(DATA_DIR, exist_ok=True)
     with open(ALIASES_FILE, 'w') as f:
         json.dump(aliases, f, indent=4)
 
 @settings_bp.route('/aliases', methods=['GET'])
 def get_aliases():
-    aliases = load_aliases()
-    return jsonify({"success": True, "aliases": aliases})
+    return jsonify({"success": True, "aliases": {}})
 
 @settings_bp.route('/aliases', methods=['POST'])
 def update_aliases():
+    return jsonify({"success": True, "aliases": {}})
+
+
+# ── Participants (per-meeting name list for fuzzy matching) ───────────────────
+def load_participants():
+    """Returns { eventId: ["Name1", "Name2", ...] }"""
+    if not os.path.exists(PARTICIPANTS_FILE):
+        return {}
+    with open(PARTICIPANTS_FILE, 'r') as f:
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return {}
+
+def save_participants(participants):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(PARTICIPANTS_FILE, 'w') as f:
+        json.dump(participants, f, indent=4)
+
+@settings_bp.route('/participants', methods=['GET'])
+def get_participants():
+    participants = load_participants()
+    return jsonify({"success": True, "participants": participants})
+
+@settings_bp.route('/participants', methods=['POST'])
+def update_participants():
     data = request.json or {}
-    aliases = data.get('aliases')
-    if not isinstance(aliases, dict):
-        return jsonify({"success": False, "error": "Invalid aliases format; expected dictionary"}), 400
-    
-    save_aliases(aliases)
-    return jsonify({"success": True, "aliases": aliases})
+    participants = data.get('participants')
+    if not isinstance(participants, dict):
+        return jsonify({"success": False, "error": "Invalid format; expected dict of eventId -> [names]"}), 400
+    save_participants(participants)
+    return jsonify({"success": True, "participants": participants})
