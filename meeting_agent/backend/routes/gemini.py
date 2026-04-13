@@ -62,7 +62,7 @@ def analyze_transcript():
     # Fast path: return cached result if already ready
     cached = get_analysis_record(transcript_id)
     if cached.get("status") == "ready" and cached.get("items") is not None:
-        return jsonify({"success": True, "items": cached["items"], "cached": True})
+        return jsonify({"success": True, "items": cached["items"], "tldrs": cached.get("tldrs"), "cached": True})
 
     api_key = CONNECTED_ACCOUNTS["fireflies"]["api_key"]
     gemini_key = CONNECTED_ACCOUNTS["gemini"]["api_key"]
@@ -78,7 +78,7 @@ def analyze_transcript():
     if not ok:
         return jsonify({"success": False, "error": f"Gemini analysis failed: {gemini_result}"}), 500
 
-    return jsonify({"success": True, "items": gemini_result})
+    return jsonify({"success": True, "items": gemini_result.get("items", []), "tldrs": gemini_result})
 
 @gemini_bp.route("/save", methods=["POST"])
 def save_analysis():

@@ -1,0 +1,33 @@
+{
+    "demo_ev_q3": [
+        "Sarah Chen",
+        "Mike Johnson",
+        "Priya Patel",
+        "Alex Rivera",
+        "Jordan Lee",
+        "Sam Park"
+    ],
+    "demo_ev_1on1": [
+        "Sarah Chen",
+        "Priya Patel"
+    ],
+    "demo_ev_sprint15": [
+        "Jordan Lee",
+        "Mike Johnson",
+        "Priya Patel",
+        "Alex Rivera"
+    ],
+    "demo_ev_design": [
+        "Alex Rivera",
+        "Priya Patel",
+        "Jordan Lee",
+        "Sam Park"
+    ],
+    "demo_ev_allhands": [
+        "Sarah Chen",
+        "Mike Johnson",
+        "Priya Patel",
+        "Alex Rivera",
+        "Jordan Lee"
+    ]
+}
