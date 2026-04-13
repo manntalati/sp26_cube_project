@@ -117,14 +117,35 @@ def _worker_loop() -> None:
             transcript_text = ff_result.get("transcript_text", "")
             action_items = ff_result.get("action_items", [])
 
-            ok, gemini_result = analyze_action_items(transcript_text, action_items, api_key=job.gemini_api_key or None)
+            # Inject document context if any documents are uploaded
+            doc_context = ''
+            try:
+                from services.document_service import DOCUMENTS, search_documents, format_context_block
+                if DOCUMENTS and job.gemini_api_key:
+                    search_query = transcript_text[:500] if transcript_text else ' '.join(action_items[:5])
+                    doc_results = search_documents(search_query, job.gemini_api_key)
+                    doc_context = format_context_block(doc_results)
+            except Exception:
+                pass  # Document context is optional — never block analysis
+
+            ok, gemini_result = analyze_action_items(
+                transcript_text, action_items,
+                api_key=job.gemini_api_key or None,
+                document_context=doc_context
+            )
             if not ok:
                 _set_record(transcript_id, status="error", error=f"Gemini analysis failed: {gemini_result}", items=None)
                 _queue.task_done()
                 continue
 
-            # Pass items and tldrs separately
-            _set_record(transcript_id, status="ready", items=gemini_result.get("items", []), tldrs=gemini_result, error=None)
+            # Pass items and tldrs separately, record if document context was used
+            _set_record(
+                transcript_id, status="ready",
+                items=gemini_result.get("items", []),
+                tldrs=gemini_result,
+                grounded_by_docs=bool(doc_context),
+                error=None
+            )
             _queue.task_done()
         except Exception as e:
             _set_record(transcript_id, status="error", error=f"Unhandled internal error: {str(e)}", items=None)

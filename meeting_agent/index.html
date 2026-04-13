@@ -777,6 +777,68 @@
     .meeting-attendee-count {
       font-size: 9px; color: var(--text-dim); margin-top: 4px;
     }
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       DOCUMENT CONTEXT PANEL
+       ═══════════════════════════════════════════════════════════════════════════ */
+    .doc-drop-zone {
+      border: 1.5px dashed var(--stroke-hover); border-radius: var(--radius-sm);
+      padding: 12px 10px; text-align: center; cursor: pointer;
+      transition: all 0.15s; color: var(--text-dim); font-size: 10.5px;
+      background: rgba(255,255,255,0.02);
+    }
+    .doc-drop-zone:hover, .doc-drop-zone.drag-over {
+      border-color: var(--purple); background: var(--purple-dim); color: var(--purple);
+    }
+    .doc-drop-zone .drop-icon { font-size: 18px; display: block; margin-bottom: 4px; opacity: 0.6; }
+    .doc-drop-zone .drop-hint { font-size: 9.5px; color: var(--text-dim); margin-top: 3px; }
+    .doc-drop-zone.drag-over .drop-hint { color: var(--purple); }
+
+    .doc-list { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+    .doc-item {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 7px; border-radius: var(--radius-sm);
+      background: rgba(255,255,255,0.03); border: 1px solid var(--stroke);
+    }
+    .doc-icon { font-size: 12px; flex-shrink: 0; }
+    .doc-name { flex: 1; font-size: 10.5px; color: var(--text); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .doc-chunks { font-size: 9px; color: var(--text-dim); white-space: nowrap; }
+    .doc-remove {
+      background: none; border: none; color: var(--text-dim);
+      cursor: pointer; font-size: 13px; padding: 0 2px; line-height: 1;
+      flex-shrink: 0; transition: color 0.15s;
+    }
+    .doc-remove:hover { color: var(--red); }
+
+    .doc-uploading {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 7px; font-size: 10px; color: var(--purple);
+    }
+
+    /* Grounding badge — appears on AI response cards */
+    .grounded-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 9px; padding: 2px 7px; border-radius: 999px;
+      background: rgba(96,165,250,0.12); color: var(--blue);
+      border: 1px solid rgba(96,165,250,0.25);
+      white-space: nowrap;
+    }
+
+    /* In-meeting doc search */
+    .doc-search-row {
+      display: flex; gap: 4px; margin-top: 6px;
+    }
+    .doc-search-result {
+      margin-top: 6px; padding: 7px 9px;
+      background: rgba(96,165,250,0.06); border: 1px solid rgba(96,165,250,0.2);
+      border-radius: var(--radius-sm); font-size: 10.5px; color: var(--text);
+      line-height: 1.5;
+    }
+    .doc-search-result .result-source {
+      font-size: 9px; color: var(--blue); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 3px;
+    }
+    .doc-search-result .result-chunk { color: var(--text); }
   </style>
 </head>
 
@@ -872,6 +934,23 @@
           <div id="upcomingEvents"><div class="empty-state">Connect Google Calendar to see meetings.</div></div>
         </div>
 
+        <!-- Document Context -->
+        <div class="settings-section" id="docContextSection">
+          <h3>Document Context</h3>
+          <div
+            id="docDropZone"
+            class="doc-drop-zone"
+            title="Click or drag & drop a PDF, TXT, or MD file"
+          >
+            <span class="drop-icon">📄</span>
+            Drop PDF, TXT, or MD here
+            <div class="drop-hint">or click to browse</div>
+          </div>
+          <input type="file" id="docFileInput" accept=".pdf,.txt,.md" style="display:none" />
+          <div id="docUploadStatus"></div>
+          <div id="docList" class="doc-list"></div>
+        </div>
+
         <!-- Sign Out -->
         <div class="signout-row">
           <button class="btn-signout" id="signoutBtn">Sign Out All</button>
@@ -886,6 +965,16 @@
         <div class="footer" id="footerText">Hold ESC to peek. Press ` to trigger nudge.</div>
 
         <div class="sep"></div>
+
+        <!-- In-meeting document search -->
+        <div id="inMeetingDocSearch" class="hidden">
+          <div class="section-label">Search Docs</div>
+          <div class="doc-search-row">
+            <input type="text" class="edit-field" id="docSearchInput" placeholder="Ask about uploaded documents…" style="flex:1" />
+            <button class="btn btn-primary btn-small" id="docSearchBtn">Ask</button>
+          </div>
+          <div id="docSearchResults"></div>
+        </div>
 
         <!-- End meeting button -->
         <button class="btn-end-meeting" id="endMeetingBtn">End Meeting → Post Review</button>

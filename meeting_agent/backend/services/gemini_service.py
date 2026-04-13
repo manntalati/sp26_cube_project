@@ -31,7 +31,7 @@ def validate_gemini_key(api_key: str) -> tuple[bool, str]:
         return False, str(e)
 
 
-def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_key: str = None) -> tuple[bool, any]:
+def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_key: str = None, document_context: str = '') -> tuple[bool, any]:
     """
     Sends the meeting transcript and Fireflies-extracted action items to Gemini.
 
@@ -115,6 +115,15 @@ Return ONLY a valid JSON object. No markdown fences, no extra text. Format:
 ## Meeting transcript
 {transcript_text if transcript_text else "(No transcript text available — use action items only)"}
 """
+
+    if document_context:
+        prompt += (
+            "\n## Supplemental document context\n"
+            "The following excerpts were retrieved from documents uploaded by the user as meeting context.\n"
+            "Use them to enrich your analysis where relevant:\n\n"
+            + document_context
+            + "\n"
+        )
 
     try:
         response = client.models.generate_content(

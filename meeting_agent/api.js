@@ -73,4 +73,18 @@ const API = {
 
   // VC Follow-Up Email Generator
   generateVCEmails: (transcriptId, context) => apiPost('/api/gemini/vc_emails', { transcript_id: transcriptId, ...context }),
+
+  // Document Context
+  uploadDocument: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE}/api/documents/upload`, {
+      method: 'POST',
+      body: formData
+    });
+    return res.json();
+  },
+  getDocuments: () => apiGet('/api/documents'),
+  deleteDocument: (id) => apiDelete(`/api/documents/${id}`),
+  queryDocuments: (query, docIds = null, topK = 3) => apiPost('/api/documents/query', { query, doc_ids: docIds, top_k: topK }),
 };
