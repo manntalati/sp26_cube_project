@@ -784,6 +784,9 @@ function renderTranscriptList() {
 async function selectTranscript(tid) {
   selectedTranscriptId = tid;
   activeActionTab = 'pending';
+  vcEmailData = null; // reset email state for new transcript
+  vcDecision = null;
+  $('generateEmailBtn') && ($('generateEmailBtn').textContent = 'Generate Draft');
   renderTranscriptList();
 
   $('actionItemsPanel').classList.remove('hidden');
@@ -1259,6 +1262,7 @@ function renderAutoSummary() {
   const section = $('autoMeetingSummary');
   if (!selectedTranscriptId) {
     section.classList.add('hidden');
+    renderVCEmailSection();
     requestResize();
     return;
   }
@@ -1266,6 +1270,7 @@ function renderAutoSummary() {
   const level = getFormalityLevel();
   generatedSummaryData = buildSummaryData(level);
   renderSummaryOutput(generatedSummaryData);
+  renderVCEmailSection();
   requestResize();
 }
 
@@ -1655,6 +1660,7 @@ async function startDemo() {
               activeActionTab = 'approved';
               renderActionItems();
               renderSummaryGenerator();
+              renderVCEmailSection();
               requestResize();
             }
           }, 800));
@@ -1690,6 +1696,184 @@ async function stopDemo() {
 
   await refreshAuthStatus();
   switchPhase('pre');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VC FOLLOW-UP EMAIL GENERATOR
+// ═══════════════════════════════════════════════════════════════════════════════
+let vcEmailData = null;       // { subject, body } — only one email at a time
+let vcDecision = null;        // 'pursue' | 'pass'
+
+function renderVCEmailSection() {
+  const section = $('vcEmailSection');
+  if (!selectedTranscriptId) {
+    section.classList.add('hidden');
+    requestResize();
+    return;
+  }
+  section.classList.remove('hidden');
+  requestResize();
+}
+
+// ── Pursue / Pass toggle ─────────────────────────────────────────────────────
+$('vcPursueBtn').addEventListener('click', () => setVCDecision('pursue'));
+$('vcPassBtn').addEventListener('click', () => setVCDecision('pass'));
+
+function setVCDecision(decision) {
+  vcDecision = decision;
+  vcEmailData = null;
+  $('vcEmailOutput').innerHTML = '';
+
+  $('vcPursueBtn').className = 'vc-decision-btn' + (decision === 'pursue' ? ' selected-pursue' : '');
+  $('vcPassBtn').className   = 'vc-decision-btn' + (decision === 'pass'   ? ' selected-pass'   : '');
+
+  // Show reason section
+  $('vcReasonSection').classList.remove('hidden');
+  $('vcReasonInput').placeholder = decision === 'pursue'
+    ? 'e.g. The team impressed us and the market timing looks right...'
+    : 'e.g. The space is outside our current focus area...';
+  $('vcReasonInput').focus();
+  requestResize();
+}
+
+// ── Generate button ──────────────────────────────────────────────────────────
+$('generateEmailBtn').addEventListener('click', async () => {
+  const btn = $('generateEmailBtn');
+  const reason       = $('vcReasonInput').value.trim();
+  const companyName  = $('vcCompanyName').value.trim() || 'the company';
+  const founderName  = $('vcFounderName').value.trim() || 'Founder';
+  const vcName       = $('vcVcName').value.trim()      || 'the team';
+  const vcFirm       = $('vcVcFirm').value.trim()      || 'our firm';
+
+  if (!vcDecision) {
+    $('vcEmailOutput').innerHTML = '<div class="vc-generating" style="color:var(--red)">Please choose Pursue or Pass first.</div>';
+    return;
+  }
+  if (!reason) {
+    $('vcEmailOutput').innerHTML = '<div class="vc-generating" style="color:var(--red)">Please enter a brief reason before generating.</div>';
+    requestResize();
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '...';
+  $('vcEmailOutput').innerHTML = '<div class="vc-generating">✨ Generating draft...</div>';
+  requestResize();
+
+  try {
+    const transcript = transcripts.find(t => t.id === selectedTranscriptId);
+    const tldr = analysisById[selectedTranscriptId]?.tldrs?.tldr_2 || transcript?.title || '';
+    const approvedItems = actionItems.filter(i => i.status === 'approved');
+
+    const context = {
+      decision: vcDecision,
+      reason,
+      company_name: companyName,
+      founder_name: founderName,
+      vc_name: vcName,
+      vc_firm: vcFirm,
+      meeting_title: transcript?.title || 'our meeting',
+      tldr,
+      action_items: approvedItems.map(i => i.description).filter(Boolean),
+    };
+
+    let email = null;
+    try {
+      const data = await API.generateVCEmails(selectedTranscriptId, context);
+      // Backend returns both; we only show the one matching the decision
+      if (data.success) {
+        email = vcDecision === 'pursue' ? data.continuation : data.rejection;
+      }
+    } catch (_) { /* fall through to template */ }
+
+    if (!email) {
+      const result = buildTemplateEmails(context);
+      email = vcDecision === 'pursue' ? result.continuation : result.rejection;
+    }
+
+    vcEmailData = email;
+    renderVCEmailOutput();
+  } catch (e) {
+    $('vcEmailOutput').innerHTML = `<div class="vc-generating" style="color:var(--red)">Error: ${escHtml(e.message)}</div>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Regenerate';
+  requestResize();
+});
+
+// Client-side template fallback
+function buildTemplateEmails(ctx) {
+  const { company_name, founder_name, vc_name, vc_firm, meeting_title, action_items, reason, decision } = ctx;
+
+  const actionList = action_items.length
+    ? action_items.slice(0, 3).map(a => `  • ${a}`).join('\n')
+    : '';
+  const nextStepsSection = actionList ? `\nAs discussed, the key next steps are:\n${actionList}\n` : '';
+
+  const continuation = {
+    subject: `Next Steps — ${company_name} x ${vc_firm}`,
+    body:
+`Hi ${founder_name},
+
+Thank you for taking the time to meet with us. ${reason ? reason : 'It was a genuinely exciting conversation.'}
+${nextStepsSection}
+We'd love to continue the conversation. I'll follow up shortly to schedule a next call.
+
+Looking forward to it,
+${vc_name}
+${vc_firm}`,
+  };
+
+  const rejection = {
+    subject: `Following Up — ${company_name}`,
+    body:
+`Hi ${founder_name},
+
+Thank you for meeting with us and walking us through ${company_name}'s progress.
+
+After careful consideration, we've decided not to move forward at this stage. ${reason ? reason : 'This reflects our current portfolio focus rather than a judgment on your work.'}
+
+We wish you all the best with your fundraise and hope our paths cross again.
+
+Warmly,
+${vc_name}
+${vc_firm}`,
+  };
+
+  return { success: true, continuation, rejection };
+}
+
+function renderVCEmailOutput() {
+  if (!vcEmailData) return;
+  const container = $('vcEmailOutput');
+  const email = vcEmailData;
+  const label = vcDecision === 'pursue' ? 'Continuation Email Draft' : 'Pass Email Draft';
+
+  container.innerHTML = `
+    <div class="vc-email-output">
+      <div class="vc-email-label">${label}</div>
+      <div class="vc-email-subject">${escHtml(email.subject)}</div>
+      <div class="vc-email-body" id="vcEmailBodyText">${escHtml(email.body)}</div>
+    </div>
+    <div class="vc-email-copy-row">
+      <button class="btn-copy-email" id="copyVcEmailBtn">📋 Copy Email</button>
+    </div>
+  `;
+
+  $('copyVcEmailBtn').addEventListener('click', () => {
+    const fullText = `Subject: ${email.subject}\n\n${email.body}`;
+    navigator.clipboard.writeText(fullText).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = fullText; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+    });
+    const btn = $('copyVcEmailBtn');
+    btn.textContent = '✓ Copied!'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '📋 Copy Email'; btn.classList.remove('copied'); }, 2000);
+  });
+
+  requestResize();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

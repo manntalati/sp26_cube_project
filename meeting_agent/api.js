@@ -70,4 +70,7 @@ const API = {
   enableDemo: () => apiPost('/api/demo/enable'),
   disableDemo: () => apiPost('/api/demo/disable'),
   getDemoStatus: () => apiGet('/api/demo/status'),
+
+  // VC Follow-Up Email Generator
+  generateVCEmails: (transcriptId, context) => apiPost('/api/gemini/vc_emails', { transcript_id: transcriptId, ...context }),
 };
