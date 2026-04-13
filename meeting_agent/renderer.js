@@ -37,6 +37,9 @@ let expandedMeetingId = null;
 
 let analysisPollingInterval = null;
 
+// Document context
+let uploadedDocuments = []; // [{id, name, chunk_count}]
+
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM REFS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -160,6 +163,7 @@ function renderPreMeeting() {
   renderPreBanner();
   renderUpcomingMeetings();
   loadParticipants();
+  renderDocumentPanel();
   requestResize();
 }
 
@@ -430,6 +434,9 @@ function renderInMeeting() {
     meetingActive = true;
   }
   renderAgenda();
+  // Show doc search panel only if documents are uploaded
+  const inMeetingSearch = $('inMeetingDocSearch');
+  if (inMeetingSearch) inMeetingSearch.classList.toggle('hidden', uploadedDocuments.length === 0);
   requestResize();
 }
 
@@ -1375,8 +1382,14 @@ function renderSummaryOutput(data) {
       }).join('')
     : `<div class="summary-empty-section">No approved action items yet.</div>`;
 
+  const groundedByDocs = analysisById[selectedTranscriptId]?.grounded_by_docs;
+  const groundedBadge = groundedByDocs
+    ? `<div style="margin-bottom:8px"><span class="grounded-badge">📄 Grounded by uploaded documents</span></div>`
+    : '';
+
   container.innerHTML = `
     <div class="summary-output">
+      ${groundedBadge}
       <div class="summary-section">
         <div class="summary-tldr">${escHtml(data.tldr)}</div>
       </div>
@@ -1885,6 +1898,158 @@ function renderVCEmailOutput() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// DOCUMENT CONTEXT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function loadDocuments() {
+  try {
+    const data = await API.getDocuments();
+    uploadedDocuments = data.documents || [];
+  } catch (e) {
+    uploadedDocuments = [];
+  }
+}
+
+function renderDocumentPanel() {
+  // Show/hide the doc search in in-meeting phase based on whether docs exist
+  const inMeetingSearch = $('inMeetingDocSearch');
+  if (inMeetingSearch) inMeetingSearch.classList.toggle('hidden', uploadedDocuments.length === 0);
+
+  renderDocumentList();
+}
+
+function renderDocumentList() {
+  const list = $('docList');
+  if (!list) return;
+
+  if (uploadedDocuments.length === 0) {
+    list.innerHTML = '';
+    return;
+  }
+
+  list.innerHTML = uploadedDocuments.map(doc => `
+    <div class="doc-item">
+      <span class="doc-icon">${doc.name.endsWith('.pdf') ? '📕' : '📝'}</span>
+      <span class="doc-name" title="${escAttr(doc.name)}">${escHtml(doc.name)}</span>
+      <span class="doc-chunks">${doc.chunk_count} chunk${doc.chunk_count !== 1 ? 's' : ''}</span>
+      <button class="doc-remove" data-doc-id="${escAttr(doc.id)}" title="Remove document">×</button>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('.doc-remove').forEach(btn => {
+    btn.addEventListener('click', () => removeDocument(btn.dataset.docId));
+  });
+}
+
+async function removeDocument(docId) {
+  try {
+    await API.deleteDocument(docId);
+    uploadedDocuments = uploadedDocuments.filter(d => d.id !== docId);
+    renderDocumentList();
+    // Update in-meeting search visibility
+    const inMeetingSearch = $('inMeetingDocSearch');
+    if (inMeetingSearch) inMeetingSearch.classList.toggle('hidden', uploadedDocuments.length === 0);
+    requestResize();
+  } catch (e) {
+    // Silently fail — doc may have already been deleted
+  }
+}
+
+async function handleDocumentUpload(file) {
+  if (!file) return;
+  const statusEl = $('docUploadStatus');
+  statusEl.innerHTML = `<div class="doc-uploading"><span style="animation:pulse 1s infinite;display:inline-block">⏳</span> Embedding ${escHtml(file.name)}…</div>`;
+  requestResize();
+
+  try {
+    const data = await API.uploadDocument(file);
+    if (data.error) {
+      statusEl.innerHTML = `<div style="color:var(--red);font-size:10px;padding:4px 0">${escHtml(data.error)}</div>`;
+    } else {
+      statusEl.innerHTML = '';
+      uploadedDocuments.push({ id: data.id, name: data.name, chunk_count: data.chunk_count });
+      renderDocumentList();
+      const inMeetingSearch = $('inMeetingDocSearch');
+      if (inMeetingSearch) inMeetingSearch.classList.remove('hidden');
+    }
+  } catch (e) {
+    statusEl.innerHTML = `<div style="color:var(--red);font-size:10px;padding:4px 0">Upload failed — check Gemini connection.</div>`;
+  }
+  requestResize();
+}
+
+// Wire up drop zone and file input
+document.addEventListener('DOMContentLoaded', () => {});
+
+(function initDocDropZone() {
+  const zone = $('docDropZone');
+  const fileInput = $('docFileInput');
+  if (!zone || !fileInput) return;
+
+  zone.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) handleDocumentUpload(file);
+    fileInput.value = '';
+  });
+
+  zone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    zone.classList.add('drag-over');
+  });
+
+  zone.addEventListener('dragleave', () => {
+    zone.classList.remove('drag-over');
+  });
+
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) handleDocumentUpload(file);
+  });
+})();
+
+// In-meeting document search
+(function initInMeetingDocSearch() {
+  const searchBtn = $('docSearchBtn');
+  const searchInput = $('docSearchInput');
+  const resultsEl = $('docSearchResults');
+  if (!searchBtn || !searchInput || !resultsEl) return;
+
+  async function runSearch() {
+    const query = searchInput.value.trim();
+    if (!query) return;
+    resultsEl.innerHTML = `<div style="font-size:10px;color:var(--purple);padding:4px 0">Searching…</div>`;
+    requestResize();
+    try {
+      const data = await API.queryDocuments(query, null, 2);
+      if (data.error) {
+        resultsEl.innerHTML = `<div style="font-size:10px;color:var(--red);padding:4px 0">${escHtml(data.error)}</div>`;
+        return;
+      }
+      if (!data.results || data.results.length === 0) {
+        resultsEl.innerHTML = `<div style="font-size:10px;color:var(--text-dim);padding:4px 0">No relevant context found.</div>`;
+        return;
+      }
+      resultsEl.innerHTML = data.results.map(r => `
+        <div class="doc-search-result">
+          <div class="result-source">📄 ${escHtml(r.doc_name)}</div>
+          <div class="result-chunk">${escHtml(r.chunk)}</div>
+        </div>
+      `).join('');
+    } catch (e) {
+      resultsEl.innerHTML = `<div style="font-size:10px;color:var(--red);padding:4px 0">Search failed.</div>`;
+    }
+    requestResize();
+  }
+
+  searchBtn.addEventListener('click', runSearch);
+  searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') runSearch(); });
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // UTILS
 // ═══════════════════════════════════════════════════════════════════════════════
 function escHtml(str) {
@@ -1904,6 +2069,7 @@ async function boot() {
   await refreshAuthStatus();
 
   if (connections.fireflies) loadTranscripts();
+  loadDocuments();
 
   // Show phase nav and open pre-meeting by default
   phaseNav.classList.add('show');

@@ -223,6 +223,15 @@ Return ONLY a valid JSON object. No markdown fences, no extra text. Format:
 {transcript_text if transcript_text else "(No transcript text available — use action items only)"}
 """
 
+    if document_context:
+        prompt += (
+            "\n## Supplemental document context\n"
+            "The following excerpts were retrieved from documents uploaded by the user as meeting context.\n"
+            "Use them to enrich your analysis where relevant:\n\n"
+            + document_context
+            + "\n"
+        )
+
     try:
         response = client.models.generate_content(
             model='gemini-2.5-flash',
