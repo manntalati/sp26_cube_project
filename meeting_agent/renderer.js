@@ -1587,10 +1587,18 @@ function buildDemoSummaryData(level) {
 }
 
 async function toggleDemo() {
-  if (demoActive) {
-    await stopDemo();
-  } else {
-    await startDemo();
+  try {
+    if (demoActive) {
+      await stopDemo();
+    } else {
+      await startDemo();
+    }
+  } catch (e) {
+    demoActive = false;
+    $('demoBtn').classList.remove('demo-active');
+    $('demoBtn').textContent = '▶';
+    $('demoBtn').title = 'Toggle Demo Mode';
+    alert(`Demo mode failed: ${e?.message || e}`);
   }
 }
 

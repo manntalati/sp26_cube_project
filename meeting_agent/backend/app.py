@@ -25,7 +25,18 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev_secret_key_123')
 
 # Enable CORS for the frontend app
-CORS(app, supports_credentials=True, origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5002", "http://127.0.0.1:5002", "file://"])
+CORS(
+    app,
+    supports_credentials=True,
+    origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5002",
+        "http://127.0.0.1:5002",
+        "file://",
+        "null",
+    ],
+)
 
 # Register blueprints
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
