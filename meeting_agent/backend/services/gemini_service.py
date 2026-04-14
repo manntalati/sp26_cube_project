@@ -138,7 +138,7 @@ Return ONLY a valid JSON object. No markdown fences, no extra text.
         return False, str(e)
 
 
-def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_key: str = None) -> tuple[bool, any]:
+def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_key: str = None, document_context: str = "") -> tuple[bool, any]:
     """
     Sends the meeting transcript and Fireflies-extracted action items to Gemini.
 

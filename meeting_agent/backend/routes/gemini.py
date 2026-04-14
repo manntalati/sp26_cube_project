@@ -74,7 +74,18 @@ def analyze_transcript():
     transcript_text = ff_result.get("transcript_text", "")
     action_items = ff_result.get("action_items", [])
 
-    ok, gemini_result = analyze_action_items(transcript_text, action_items, api_key=gemini_key)
+    # Inject document context if any documents are uploaded
+    doc_context = ""
+    try:
+        from services.document_service import DOCUMENTS, search_documents, format_context_block
+        if DOCUMENTS and gemini_key:
+            search_query = transcript_text[:500] if transcript_text else " ".join(action_items[:5])
+            doc_results = search_documents(search_query, gemini_key)
+            doc_context = format_context_block(doc_results)
+    except Exception:
+        pass  # Document context is optional — never block analysis
+
+    ok, gemini_result = analyze_action_items(transcript_text, action_items, api_key=gemini_key, document_context=doc_context)
     if not ok:
         return jsonify({"success": False, "error": f"Gemini analysis failed: {gemini_result}"}), 500
 
