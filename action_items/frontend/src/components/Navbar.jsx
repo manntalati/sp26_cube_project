@@ -1,10 +1,16 @@
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { AGENT_ROLES, readAgentRole, writeAgentRole } from '../agentRole';
 import './Navbar.css';
 
 export default function Navbar({ connections = {}, setConnections }) {
     const navigate = useNavigate();
-    const location = useLocation();
-    const isOnboarding = location.pathname.startsWith('/connect');
+    const [agentRole, setAgentRole] = useState(readAgentRole);
+
+    const selectAgentRole = (role) => {
+        writeAgentRole(role);
+        setAgentRole(role);
+    };
     const isDashboard = location.pathname === '/dashboard';
     const hasConnections = Object.keys(connections).length > 0;
 
@@ -37,6 +43,22 @@ export default function Navbar({ connections = {}, setConnections }) {
                         </svg>
                     </div>
                     <span className="navbar-title">Action Items Agent</span>
+                </div>
+
+                <div className="navbar-role-cluster" role="group" aria-label="Agent perspective">
+                    <span className="navbar-role-label">Perspective</span>
+                    <div className="role-pill-bar">
+                        {AGENT_ROLES.map((r) => (
+                            <button
+                                key={r}
+                                type="button"
+                                className={`role-pill ${agentRole === r ? 'active' : ''}`}
+                                onClick={() => selectAgentRole(r)}
+                            >
+                                {r}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 <div className="navbar-right">

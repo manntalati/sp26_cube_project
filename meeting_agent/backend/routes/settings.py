@@ -6,7 +6,9 @@ settings_bp = Blueprint('settings', __name__)
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 ALIASES_FILE = os.path.join(DATA_DIR, 'aliases.json')
-PARTICIPANTS_FILE = os.path.join(DATA_DIR, 'participants.json')
+# meeting_participants.json stores per-meeting name lists for online fuzzy matching
+# (separate from participants.json which stores in-person structured participants with email)
+PARTICIPANTS_FILE = os.path.join(DATA_DIR, 'meeting_participants.json')
 
 
 # ── Aliases (kept for backward compat, no longer used in UI) ──────────────────

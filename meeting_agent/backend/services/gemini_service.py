@@ -2,7 +2,7 @@ import os
 import json
 from google import genai
 from dotenv import load_dotenv
-from routes.settings import load_participants
+from routes.settings import load_aliases
 
 # Try to load from root directory, fallback to current dir
 env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
@@ -138,20 +138,35 @@ Return ONLY a valid JSON object. No markdown fences, no extra text.
         return False, str(e)
 
 
-def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_key: str = None, document_context: str = "") -> tuple[bool, any]:
+def analyze_action_items(
+    transcript_text: str,
+    raw_action_items: list[str],
+    api_key: str = None,
+    participants: list = None,
+    document_context: str = '',
+) -> tuple[bool, any]:
     """
-    Sends the meeting transcript and Fireflies-extracted action items to Gemini.
+    Sends the meeting transcript and action items to Gemini for enrichment.
 
-    Returns (True, list_of_enriched_items) on success, (False, error_message) on failure.
+    participants: list of {speaker_id, name, email} — used in in-person mode for
+      deterministic owner assignment. When None, falls back to aliases.json fuzzy matching.
 
-    Each item in the returned list is a dict with keys:
+    document_context: optional pre-formatted string of document excerpts to append
+      to the prompt (used in online mode when documents have been uploaded).
+
+    Returns (True, result_dict) on success, (False, error_message) on failure.
+
+    result_dict keys:
+        tldr_0..tldr_4     - summaries at 5 formality levels
+        items              - list of enriched action item dicts
+    Each item:
         id                - int index (1-based)
         description       - str  (original wording PRESERVED EXACTLY)
-        description_flag  - str | null  (set ONLY if description is vague/unclear/not actionable)
+        description_flag  - str | null
         owner             - list[str] | []
-        owner_flag        - str | null  (set if a name looks misspelled or incorrectly assigned)
+        owner_flag        - str | null
         deadline          - str | null  (YYYY-MM-DD only)
-        gap_notes         - list[str] | []  (each gap as a separate string, e.g. ["No owner found", "No deadline"])
+        gap_notes         - list[str] | []
         source            - "existing" | "suggested"
         priority          - "High" | "Medium" | "Low" | null
         task_status       - "Not Started" | "In Progress" | "Completed" | null
@@ -165,20 +180,30 @@ def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_
         f"{i+1}. {item}" for i, item in enumerate(raw_action_items)
     ) if raw_action_items else "(none)"
 
-    all_participants_map = load_participants()
-    all_participant_names = list({name for names in all_participants_map.values() for name in names})
-    participant_instruction = ""
-    if all_participant_names:
-        participant_list = ", ".join(all_participant_names)
+    # Build the name-context block for Gemini.
+    # In-person mode supplies a deterministic participants list; online mode falls
+    # back to the aliases.json fuzzy-correction table.
+    if participants:
+        lines = []
+        for p in participants:
+            email_part = f" <{p['email']}>" if p.get("email") else ""
+            lines.append(f"  - {p['speaker_id']} = {p['name']}{email_part}")
         participant_instruction = (
-            f"\nIMPORTANT NAME CORRECTION RULES:\n"
-            f"The following people are known meeting participants: {participant_list}\n"
-            f"When you encounter any person name in the transcript or action items that appears to be\n"
-            f"a misspelling, nickname, abbreviation, or variation of a name in this list,\n"
-            f"replace it with the exact correct spelling from the list.\n"
-            f"Examples: 'Sara' → 'Sarah Chen', 'Mike J' → 'Mike Johnson', 'Priya' → 'Priya Patel'.\n"
-            f"Use case-insensitive fuzzy matching to make this determination.\n"
+            "\nMEETING PARTICIPANTS (authoritative — use these exact names for owner assignment):\n"
+            + "\n".join(lines)
+            + "\nDo NOT invent names. If an action item's owner cannot be matched to this list, set owner to [].\n"
         )
+    else:
+        aliases = load_aliases()
+        participant_instruction = ""
+        if aliases:
+            alias_json = json.dumps(aliases, indent=2)
+            participant_instruction = (
+                f"\nIMPORTANT NAME MAPPING RULES:\n"
+                f"Use the following mapping to correct owner names found in the transcript.\n"
+                f"If you see a name matching a key (case-insensitive or partial match), replace it with the exact value.\n"
+                f"Mapping Table: {alias_json}\n"
+            )
 
     prompt = f"""You are an AI assistant that reviews meeting transcripts and action items.
 
@@ -248,26 +273,24 @@ Return ONLY a valid JSON object. No markdown fences, no extra text. Format:
             ).strip()
 
         parsed_data = json.loads(text)
-        
-        # Backwards compatibility / robustness
+
+        # Backwards compatibility: if Gemini returns a plain list, wrap it
         if isinstance(parsed_data, list):
-            items = parsed_data
             parsed_data = {
                 "tldr_0": "Summary not available.",
                 "tldr_1": "Summary not available.",
                 "tldr_2": "Summary not available.",
                 "tldr_3": "Summary not available.",
                 "tldr_4": "Summary not available.",
-                "items": items
+                "items": parsed_data,
             }
         elif not isinstance(parsed_data, dict) or "items" not in parsed_data:
             raise ValueError("Gemini did not return a valid JSON object containing 'items'")
 
         items = parsed_data["items"]
-        
+
         # Normalise fields for robustness
         for item in items:
-            # owner always a list
             raw_owner = item.get("owner")
             if raw_owner is None:
                 item["owner"] = []
@@ -278,12 +301,10 @@ Return ONLY a valid JSON object. No markdown fences, no extra text. Format:
             else:
                 item["owner"] = []
 
-            # gap_notes always a list of strings
             raw_gaps = item.get("gap_notes")
             if raw_gaps is None:
                 item["gap_notes"] = []
             elif isinstance(raw_gaps, str):
-                # Handle old-format comma-separated string gracefully
                 parts = [p.strip() for p in raw_gaps.split(",") if p.strip()]
                 item["gap_notes"] = parts
             elif isinstance(raw_gaps, list):

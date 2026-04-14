@@ -113,6 +113,14 @@ function createWindow() {
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
+  // Grant microphone access for in-person mode (getUserMedia in renderer)
+  win.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === 'media');
+  });
+  win.webContents.session.setPermissionCheckHandler((_wc, permission) => {
+    return permission === 'media';
+  });
+
   win.loadFile('index.html');
 }
 
