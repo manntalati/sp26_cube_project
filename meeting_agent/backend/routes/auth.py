@@ -2,10 +2,10 @@ from flask import Blueprint, request, jsonify, session
 from services.fireflies_service import validate_api_key
 from services.calendar_service import get_google_auth_flow
 from services.gemini_service import validate_gemini_key
+from services.deepgram_service import validate_deepgram_key
 import os
 import json
 import tempfile
-import fcntl
 
 # Path to the file used to persist pending OAuth flows across Werkzeug processes
 _OAUTH_STATE_FILE = os.path.join(tempfile.gettempdir(), 'action_item_agent_oauth_flows.json')
@@ -14,19 +14,15 @@ def _load_oauth_flows():
     """Read persisted OAuth flow state from disk."""
     try:
         with open(_OAUTH_STATE_FILE, 'r') as f:
-            fcntl.flock(f, fcntl.LOCK_SH)
             data = json.load(f)
-            fcntl.flock(f, fcntl.LOCK_UN)
             return data
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 def _save_oauth_flows(flows):
-    """Write OAuth flow state to disk atomically."""
+    """Write OAuth flow state to disk."""
     with open(_OAUTH_STATE_FILE, 'w') as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
         json.dump(flows, f)
-        fcntl.flock(f, fcntl.LOCK_UN)
 
 def _pop_oauth_flow(state):
     """Retrieve and remove a pending OAuth flow entry by state key."""
@@ -49,7 +45,8 @@ auth_bp = Blueprint('auth', __name__)
 CONNECTED_ACCOUNTS = {
     "fireflies": None,  # Will store {"email": "...", "name": "...", "api_key": "..."}
     "calendar": None,   # Will store {"email": "...", "credentials": {...}}
-    "gemini": None       # Will store {"api_key": "..."}
+    "gemini": None,     # Will store {"api_key": "..."}
+    "deepgram": None,   # Will store {"api_key": "..."}  — used for in-person mode
 }
 
 # NOTE: Pending OAuth flows are now persisted to disk (see _load_oauth_flows / _save_oauth_flows)
@@ -57,7 +54,7 @@ CONNECTED_ACCOUNTS = {
 
 @auth_bp.route('/status', methods=['GET'])
 def get_status():
-    """Returns the current connection status for both services."""
+    """Returns the current connection status for all services."""
     return jsonify({
         "fireflies": {
             "connected": is_connected("fireflies"),
@@ -70,7 +67,10 @@ def get_status():
         },
         "gemini": {
             "connected": is_connected("gemini")
-        }
+        },
+        "deepgram": {
+            "connected": is_connected("deepgram")
+        },
     })
 
 def is_connected(service):
@@ -218,6 +218,30 @@ def disconnect_gemini():
     CONNECTED_ACCOUNTS["gemini"] = None
     return jsonify({"success": True})
 
+
+# Deepgram API key routes (used for in-person mode)
+@auth_bp.route('/deepgram', methods=['POST'])
+def connect_deepgram():
+    """Validates the Deepgram API key and stores it."""
+    data = request.json or {}
+    api_key = data.get('api_key')
+
+    if not api_key:
+        return jsonify({"success": False, "error": "API key is required"}), 400
+
+    success, result = validate_deepgram_key(api_key)
+    if success:
+        CONNECTED_ACCOUNTS["deepgram"] = {"api_key": api_key}
+        return jsonify({"success": True})
+    else:
+        return jsonify({"success": False, "error": f"Invalid Deepgram API key: {result}"}), 401
+
+@auth_bp.route('/deepgram/disconnect', methods=['POST'])
+def disconnect_deepgram():
+    CONNECTED_ACCOUNTS["deepgram"] = None
+    return jsonify({"success": True})
+
+
 # Global Sign Out route
 @auth_bp.route('/signout', methods=['POST'])
 def global_signout():
@@ -225,4 +249,5 @@ def global_signout():
     CONNECTED_ACCOUNTS["fireflies"] = None
     CONNECTED_ACCOUNTS["calendar"] = None
     CONNECTED_ACCOUNTS["gemini"] = None
+    CONNECTED_ACCOUNTS["deepgram"] = None
     return jsonify({"success": True})
