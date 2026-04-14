@@ -5,7 +5,7 @@ so the Meeting Agent can be showcased without real API keys.
 from flask import Blueprint, jsonify
 from routes.auth import CONNECTED_ACCOUNTS
 from services.background_analysis import ANALYSIS_STORE
-from routes.settings import save_aliases
+from routes.settings import save_participants
 import time
 
 demo_bp = Blueprint('demo', __name__)
@@ -153,17 +153,19 @@ DEMO_ACTION_ITEMS_RETRO = [
 ]
 
 DEMO_CALENDAR_EVENTS = [
-    {"title": "Q3 Planning & Resource Allocation", "start": "2026-03-24T10:00:00", "end": "2026-03-24T11:00:00", "link": "#"},
-    {"title": "1:1 with Priya Patel", "start": "2026-03-25T14:00:00", "end": "2026-03-25T14:30:00", "link": "#"},
-    {"title": "Sprint 15 Kickoff", "start": "2026-03-26T09:30:00", "end": "2026-03-26T10:00:00", "link": "#"},
-    {"title": "Design Review: Onboarding V2", "start": "2026-03-27T15:00:00", "end": "2026-03-27T16:00:00", "link": "#"},
-    {"title": "All-Hands", "start": "2026-03-28T11:00:00", "end": "2026-03-28T12:00:00", "link": "#"},
+    {"id": "demo_ev_q3",       "title": "Q3 Planning & Resource Allocation", "start": "2026-04-14T10:00:00", "end": "2026-04-14T11:00:00", "link": "#", "attendee_count": 6},
+    {"id": "demo_ev_1on1",     "title": "1:1 with Priya Patel",               "start": "2026-04-15T14:00:00", "end": "2026-04-15T14:30:00", "link": "#", "attendee_count": 2},
+    {"id": "demo_ev_sprint15", "title": "Sprint 15 Kickoff",                  "start": "2026-04-16T09:30:00", "end": "2026-04-16T10:00:00", "link": "#", "attendee_count": 8},
+    {"id": "demo_ev_design",   "title": "Design Review: Onboarding V2",       "start": "2026-04-17T15:00:00", "end": "2026-04-17T16:00:00", "link": "#", "attendee_count": 4},
+    {"id": "demo_ev_allhands", "title": "All-Hands",                           "start": "2026-04-18T11:00:00", "end": "2026-04-18T12:00:00", "link": "#", "attendee_count": 25},
 ]
 
-DEMO_ALIASES = {
-    "Sara": "Sarah Chen",
-    "Mike J": "Mike Johnson",
-    "Priya": "Priya Patel",
+DEMO_PARTICIPANTS = {
+    "demo_ev_q3":       ["Sarah Chen", "Mike Johnson", "Priya Patel", "Alex Rivera", "Jordan Lee", "Sam Park"],
+    "demo_ev_1on1":     ["Sarah Chen", "Priya Patel"],
+    "demo_ev_sprint15": ["Jordan Lee", "Mike Johnson", "Priya Patel", "Alex Rivera"],
+    "demo_ev_design":   ["Alex Rivera", "Priya Patel", "Jordan Lee", "Sam Park"],
+    "demo_ev_allhands": ["Sarah Chen", "Mike Johnson", "Priya Patel", "Alex Rivera", "Jordan Lee"],
 }
 
 # ── State flag ────────────────────────────────────────────────────────────────
@@ -210,8 +212,8 @@ def enable_demo():
         "updated_at_ms": int(time.time() * 1000),
     }
 
-    # 3. Seed aliases
-    save_aliases(DEMO_ALIASES)
+    # 3. Seed participants
+    save_participants(DEMO_PARTICIPANTS)
 
     return jsonify({"success": True, "message": "Demo mode enabled"})
 

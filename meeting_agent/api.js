@@ -76,18 +76,39 @@ const API = {
   enqueueAnalysis: (transcriptId, force = false) => apiPost('/api/gemini/enqueue', { transcript_id: transcriptId, force }),
   saveAnalysis: (transcriptId, items) => apiPost('/api/gemini/save', { transcript_id: transcriptId, items }),
 
-  // Settings
+  // Settings — aliases (online mode name correction)
   getAliases: () => apiGet('/api/settings/aliases'),
   saveAliases: (aliases) => apiPost('/api/settings/aliases', { aliases }),
+
+  // Settings — per-meeting participant lists (online mode fuzzy name matching)
+  getMeetingParticipants: () => apiGet('/api/settings/participants'),
+  saveMeetingParticipants: (participants) => apiPost('/api/settings/participants', { participants }),
+
+  // In-person participants (structured: [{speaker_id, name, email}])
+  getParticipants: () => apiGet('/api/participants'),
+  saveParticipants: (participants) => apiPost('/api/participants', { participants }),
 
   // Demo
   enableDemo: () => apiPost('/api/demo/enable'),
   disableDemo: () => apiPost('/api/demo/disable'),
   getDemoStatus: () => apiGet('/api/demo/status'),
 
-  // ── Participants (in-person mode) ──────────────────────────────────────────
-  getParticipants: () => apiGet('/api/participants'),
-  saveParticipants: (participants) => apiPost('/api/participants', { participants }),
+  // VC Follow-Up Email Generator
+  generateVCEmails: (transcriptId, context) => apiPost('/api/gemini/vc_emails', { transcript_id: transcriptId, ...context }),
+
+  // Document Context
+  uploadDocument: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE}/api/documents/upload`, {
+      method: 'POST',
+      body: formData
+    });
+    return res.json();
+  },
+  getDocuments: () => apiGet('/api/documents'),
+  deleteDocument: (id) => apiDelete(`/api/documents/${id}`),
+  queryDocuments: (query, docIds = null, topK = 3) => apiPost('/api/documents/query', { query, doc_ids: docIds, top_k: topK }),
 
   // ── Auth: Deepgram (in-person mode) ────────────────────────────────────────
   connectDeepgram: (apiKey) => apiPost('/api/auth/deepgram', { api_key: apiKey }),

@@ -11,12 +11,15 @@ let flaskProcess = null;
 // ─────────────────────────────────────────────────────────────────────────────
 function startFlask() {
   const backendDir = path.join(__dirname, 'backend');
-  const venvPython = path.join(backendDir, 'venv', 'bin', 'python3');
+  const backendVenvPython = path.join(backendDir, 'venv', 'bin', 'python3');
+  const projectVenvPython = path.join(__dirname, '..', 'venv', 'bin', 'python3');
   const systemPython = 'python3';
 
-  // Prefer venv python if it exists, otherwise system python
+  // Prefer backend venv, then project venv, then system python
   const fs = require('fs');
-  const pythonPath = fs.existsSync(venvPython) ? venvPython : systemPython;
+  const pythonPath = fs.existsSync(backendVenvPython)
+    ? backendVenvPython
+    : (fs.existsSync(projectVenvPython) ? projectVenvPython : systemPython);
 
   flaskProcess = spawn(pythonPath, ['app.py'], {
     cwd: backendDir,

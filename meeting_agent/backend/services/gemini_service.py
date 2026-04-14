@@ -31,20 +31,142 @@ def validate_gemini_key(api_key: str) -> tuple[bool, str]:
         return False, str(e)
 
 
-def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_key: str = None, participants: list = None) -> tuple[bool, any]:
+def generate_vc_emails(
+    company_name: str,
+    founder_name: str,
+    vc_name: str,
+    vc_firm: str,
+    meeting_title: str,
+    tldr: str,
+    action_items: list[str],
+    decision: str = None,
+    reason: str = None,
+    api_key: str = None,
+) -> tuple[bool, any]:
     """
-    Sends the meeting transcript and Fireflies-extracted action items to Gemini.
+    Generates a continuation OR rejection follow-up email for a VC post-meeting.
+    decision: 'pursue' | 'pass'
+    reason: 1-3 sentence reason from the VC
 
-    Returns (True, list_of_enriched_items) on success, (False, error_message) on failure.
+    Returns (True, {"continuation": {"subject": str, "body": str},
+                    "rejection":     {"subject": str, "body": str}})
+         or (False, error_message_str)
+    """
+    try:
+        client = _get_client(api_key=api_key)
+    except ValueError as e:
+        return False, str(e)
 
-    Each item in the returned list is a dict with keys:
+    action_items_block = (
+        "\n".join(f"- {item}" for item in action_items)
+        if action_items
+        else "(none discussed)"
+    )
+
+    decision_instruction = ""
+    if decision == "pursue":
+        decision_instruction = "The VC has decided to PURSUE this company."
+    elif decision == "pass":
+        decision_instruction = "The VC has decided to PASS on this company."
+
+    reason_instruction = f"The VC's stated reason: \"{reason}\"" if reason else "(no reason provided)"
+
+    prompt = f"""You are a venture capitalist writing concise, professional post-meeting follow-up emails.
+
+## Context
+- Meeting title: {meeting_title}
+- Startup: {company_name}
+- Founder name: {founder_name}
+- VC name (sender): {vc_name}
+- VC firm: {vc_firm}
+- Meeting summary (TL;DR): {tldr or "(not available)"}
+- Key action items discussed:
+{action_items_block}
+- Decision: {decision_instruction}
+- {reason_instruction}
+
+## Your task
+Write TWO emails in the VC's voice (even if a decision is provided, always return both):
+
+1. **Continuation email** — The VC wants to move forward. Naturally incorporate the VC's stated reason if provided. Warm but professional. 3-5 short paragraphs.
+
+2. **Rejection (pass) email** — The VC is passing. Naturally incorporate the VC's stated reason if provided. Be respectful and brief. 2-3 short paragraphs.
+
+## Output format
+Return ONLY a valid JSON object. No markdown fences, no extra text.
+{{
+  "continuation": {{
+    "subject": "<email subject line>",
+    "body": "<full email body, use \\n for line breaks>"
+  }},
+  "rejection": {{
+    "subject": "<email subject line>",
+    "body": "<full email body, use \\n for line breaks>"
+  }}
+}}
+"""
+
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
+        text = response.text.strip()
+
+        # Strip accidental markdown fences if present
+        if text.startswith("```"):
+            lines = text.splitlines()
+            text = "\n".join(
+                line for line in lines
+                if not line.startswith("```")
+            ).strip()
+
+        result = json.loads(text)
+
+        # Validate expected shape
+        for key in ("continuation", "rejection"):
+            if key not in result:
+                raise ValueError(f"Missing '{key}' key in Gemini response")
+            if "subject" not in result[key] or "body" not in result[key]:
+                raise ValueError(f"Missing subject/body in '{key}' email")
+
+        return True, result
+
+    except json.JSONDecodeError as e:
+        return False, f"Failed to parse Gemini response as JSON: {e}"
+    except Exception as e:
+        return False, str(e)
+
+
+def analyze_action_items(
+    transcript_text: str,
+    raw_action_items: list[str],
+    api_key: str = None,
+    participants: list = None,
+    document_context: str = '',
+) -> tuple[bool, any]:
+    """
+    Sends the meeting transcript and action items to Gemini for enrichment.
+
+    participants: list of {speaker_id, name, email} — used in in-person mode for
+      deterministic owner assignment. When None, falls back to aliases.json fuzzy matching.
+
+    document_context: optional pre-formatted string of document excerpts to append
+      to the prompt (used in online mode when documents have been uploaded).
+
+    Returns (True, result_dict) on success, (False, error_message) on failure.
+
+    result_dict keys:
+        tldr_0..tldr_4     - summaries at 5 formality levels
+        items              - list of enriched action item dicts
+    Each item:
         id                - int index (1-based)
         description       - str  (original wording PRESERVED EXACTLY)
-        description_flag  - str | null  (set ONLY if description is vague/unclear/not actionable)
+        description_flag  - str | null
         owner             - list[str] | []
-        owner_flag        - str | null  (set if a name looks misspelled or incorrectly assigned)
+        owner_flag        - str | null
         deadline          - str | null  (YYYY-MM-DD only)
-        gap_notes         - list[str] | []  (each gap as a separate string, e.g. ["No owner found", "No deadline"])
+        gap_notes         - list[str] | []
         source            - "existing" | "suggested"
         priority          - "High" | "Medium" | "Low" | null
         task_status       - "Not Started" | "In Progress" | "Completed" | null
@@ -66,17 +188,17 @@ def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_
         for p in participants:
             email_part = f" <{p['email']}>" if p.get("email") else ""
             lines.append(f"  - {p['speaker_id']} = {p['name']}{email_part}")
-        alias_instruction = (
+        participant_instruction = (
             "\nMEETING PARTICIPANTS (authoritative — use these exact names for owner assignment):\n"
             + "\n".join(lines)
             + "\nDo NOT invent names. If an action item's owner cannot be matched to this list, set owner to [].\n"
         )
     else:
         aliases = load_aliases()
-        alias_instruction = ""
+        participant_instruction = ""
         if aliases:
             alias_json = json.dumps(aliases, indent=2)
-            alias_instruction = (
+            participant_instruction = (
                 f"\nIMPORTANT NAME MAPPING RULES:\n"
                 f"Use the following mapping to correct owner names found in the transcript.\n"
                 f"If you see a name matching a key (case-insensitive or partial match), replace it with the exact value.\n"
@@ -95,18 +217,28 @@ Given the meeting transcript and the list of action items already extracted by a
 3. For existing items, PRESERVE the original wording of descriptions exactly. Do NOT alter the wording. Do NOT prepend verbs.
 4. Set description_flag (non-null string) ONLY if the description is genuinely vague, unclear, or not actionable (e.g. "TBD", "discuss further"). Never flag just for missing a verb.
 5. Set owner_flag (non-null string) if a name in owner looks misspelled or clearly incorrectly assigned. E.g. "'Jon' may be a misspelling of 'John'".
-{alias_instruction}
+6. Analyze the entire meeting transcript and form 2-3 sentences based on what you think is the most important takeaway(s) from the meeting. Provide this summary in 5 different formality levels.
+{participant_instruction}
 ## Output format
-Return ONLY a valid JSON array. No markdown fences, no extra text. Each element:
+Return ONLY a valid JSON object. No markdown fences, no extra text. Format:
 {{
-  "id": <int, 1-based>,
-  "description": "<exact preserved description (or new text for suggested items)>",
-  "description_flag": "<issue string or null>",
-  "owner": ["<name>"],
-  "owner_flag": "<issue string or null>",
-  "deadline": "<YYYY-MM-DD or null>",
-  "gap_notes": ["<gap string>", "<gap string>"],
-  "source": "existing" | "suggested"
+  "tldr_0": "<2-3 sentence casual summary, like 'We wrapped up...'>",
+  "tldr_1": "<2-3 sentence informal summary>",
+  "tldr_2": "<2-3 sentence neutral summary>",
+  "tldr_3": "<2-3 sentence professional summary>",
+  "tldr_4": "<2-3 sentence formal summary>",
+  "items": [
+    {{
+      "id": <int, 1-based>,
+      "description": "<exact preserved description (or new text for suggested items)>",
+      "description_flag": "<issue string or null>",
+      "owner": ["<name>"],
+      "owner_flag": "<issue string or null>",
+      "deadline": "<YYYY-MM-DD or null>",
+      "gap_notes": ["<gap string>", "<gap string>"],
+      "source": "existing" | "suggested"
+    }}
+  ]
 }}
 
 ## Existing action items
@@ -115,6 +247,15 @@ Return ONLY a valid JSON array. No markdown fences, no extra text. Each element:
 ## Meeting transcript
 {transcript_text if transcript_text else "(No transcript text available — use action items only)"}
 """
+
+    if document_context:
+        prompt += (
+            "\n## Supplemental document context\n"
+            "The following excerpts were retrieved from documents uploaded by the user as meeting context.\n"
+            "Use them to enrich your analysis where relevant:\n\n"
+            + document_context
+            + "\n"
+        )
 
     try:
         response = client.models.generate_content(
@@ -131,13 +272,25 @@ Return ONLY a valid JSON array. No markdown fences, no extra text. Each element:
                 if not line.startswith("```")
             ).strip()
 
-        items = json.loads(text)
-        if not isinstance(items, list):
-            raise ValueError("Gemini did not return a JSON array")
+        parsed_data = json.loads(text)
+
+        # Backwards compatibility: if Gemini returns a plain list, wrap it
+        if isinstance(parsed_data, list):
+            parsed_data = {
+                "tldr_0": "Summary not available.",
+                "tldr_1": "Summary not available.",
+                "tldr_2": "Summary not available.",
+                "tldr_3": "Summary not available.",
+                "tldr_4": "Summary not available.",
+                "items": parsed_data,
+            }
+        elif not isinstance(parsed_data, dict) or "items" not in parsed_data:
+            raise ValueError("Gemini did not return a valid JSON object containing 'items'")
+
+        items = parsed_data["items"]
 
         # Normalise fields for robustness
         for item in items:
-            # owner always a list
             raw_owner = item.get("owner")
             if raw_owner is None:
                 item["owner"] = []
@@ -148,12 +301,10 @@ Return ONLY a valid JSON array. No markdown fences, no extra text. Each element:
             else:
                 item["owner"] = []
 
-            # gap_notes always a list of strings
             raw_gaps = item.get("gap_notes")
             if raw_gaps is None:
                 item["gap_notes"] = []
             elif isinstance(raw_gaps, str):
-                # Handle old-format comma-separated string gracefully
                 parts = [p.strip() for p in raw_gaps.split(",") if p.strip()]
                 item["gap_notes"] = parts
             elif isinstance(raw_gaps, list):
@@ -161,7 +312,7 @@ Return ONLY a valid JSON array. No markdown fences, no extra text. Each element:
             else:
                 item["gap_notes"] = []
 
-        return True, items
+        return True, parsed_data
 
     except json.JSONDecodeError as e:
         return False, f"Failed to parse Gemini response as JSON: {e}"

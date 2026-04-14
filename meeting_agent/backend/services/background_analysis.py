@@ -175,8 +175,11 @@ def _worker_loop() -> None:
         try:
             _set_record(transcript_id, status="processing", error=None)
 
+            doc_context = ''
+
             if isinstance(job, InPersonJob):
-                # In-person path: transcript text already built by DeepgramSession adapter
+                # In-person path: transcript text already built by DeepgramSession adapter.
+                # Participants list is passed directly — no document context injection.
                 transcript_text = job.transcript_text
                 action_items = job.action_items
                 participants = job.participants  # [{speaker_id, name, email}]
@@ -187,22 +190,40 @@ def _worker_loop() -> None:
                     _set_record(transcript_id, status="error", error=f"Fireflies fetch failed: {ff_result}", items=None)
                     _queue.task_done()
                     continue
+
                 transcript_text = ff_result.get("transcript_text", "")
                 action_items = ff_result.get("action_items", [])
                 participants = None  # online mode uses aliases from gemini_service
+
+                # Inject document context if any documents are uploaded
+                try:
+                    from services.document_service import DOCUMENTS, search_documents, format_context_block
+                    if DOCUMENTS and job.gemini_api_key:
+                        search_query = transcript_text[:500] if transcript_text else ' '.join(action_items[:5])
+                        doc_results = search_documents(search_query, job.gemini_api_key)
+                        doc_context = format_context_block(doc_results)
+                except Exception:
+                    pass  # Document context is optional — never block analysis
 
             # Common path: Gemini enrichment (identical for both modes)
             ok, gemini_result = analyze_action_items(
                 transcript_text, action_items,
                 api_key=job.gemini_api_key or None,
                 participants=participants,
+                document_context=doc_context,
             )
             if not ok:
                 _set_record(transcript_id, status="error", error=f"Gemini analysis failed: {gemini_result}", items=None)
                 _queue.task_done()
                 continue
 
-            _set_record(transcript_id, status="ready", items=gemini_result, error=None)
+            _set_record(
+                transcript_id, status="ready",
+                items=gemini_result.get("items", []),
+                tldrs=gemini_result,
+                grounded_by_docs=bool(doc_context),
+                error=None,
+            )
             _queue.task_done()
         except Exception as e:
             _set_record(transcript_id, status="error", error=f"Unhandled internal error: {str(e)}", items=None)
@@ -223,4 +244,3 @@ def start_background_worker() -> None:
         t = threading.Thread(target=_worker_loop, name="gemini-analysis-worker", daemon=True)
         t.start()
         _worker_started = True
-
