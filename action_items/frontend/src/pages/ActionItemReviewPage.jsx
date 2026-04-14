@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { readAgentRole } from '../agentRole';
 import './ActionItemReviewPage.css';
 
 // ─── TagInput ─────────────────────────────────────────────────────────────────
@@ -135,7 +136,11 @@ export default function ActionItemReviewPage({ connections }) {
             await fetch('/api/gemini/enqueue', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ transcript_id: transcriptId, force: true })
+                body: JSON.stringify({
+                    transcript_id: transcriptId,
+                    force: true,
+                    role: readAgentRole(),
+                })
             });
             await pollUntilReady();
         } catch (err) {
@@ -153,7 +158,7 @@ export default function ActionItemReviewPage({ connections }) {
                 await fetch('/api/gemini/enqueue', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ transcript_id: transcriptId })
+                    body: JSON.stringify({ transcript_id: transcriptId, role: readAgentRole() })
                 });
                 await pollUntilReady();
             } catch (err) {
