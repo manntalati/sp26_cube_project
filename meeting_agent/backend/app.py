@@ -18,6 +18,8 @@ from routes.calendar_api import calendar_bp
 from routes.gemini import gemini_bp
 from routes.settings import settings_bp
 from routes.demo import demo_bp
+from routes.inperson import inperson_bp
+from routes.participants import participants_bp
 from services.background_analysis import start_background_worker
 
 app = Flask(__name__)
@@ -34,6 +36,8 @@ app.register_blueprint(calendar_bp, url_prefix='/api/calendar')
 app.register_blueprint(gemini_bp, url_prefix='/api/gemini')
 app.register_blueprint(settings_bp, url_prefix='/api/settings')
 app.register_blueprint(demo_bp, url_prefix='/api/demo')
+app.register_blueprint(inperson_bp, url_prefix='/api/inperson')
+app.register_blueprint(participants_bp, url_prefix='/api/participants')
 
 # Start background analysis worker (avoid double-start in debug reloader)
 if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:

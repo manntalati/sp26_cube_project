@@ -31,7 +31,7 @@ def validate_gemini_key(api_key: str) -> tuple[bool, str]:
         return False, str(e)
 
 
-def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_key: str = None) -> tuple[bool, any]:
+def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_key: str = None, participants: list = None) -> tuple[bool, any]:
     """
     Sends the meeting transcript and Fireflies-extracted action items to Gemini.
 
@@ -58,16 +58,30 @@ def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_
         f"{i+1}. {item}" for i, item in enumerate(raw_action_items)
     ) if raw_action_items else "(none)"
 
-    aliases = load_aliases()
-    alias_instruction = ""
-    if aliases:
-        alias_json = json.dumps(aliases, indent=2)
+    # Build the name-context block for Gemini.
+    # In-person mode supplies a deterministic participants list; online mode falls
+    # back to the aliases.json fuzzy-correction table.
+    if participants:
+        lines = []
+        for p in participants:
+            email_part = f" <{p['email']}>" if p.get("email") else ""
+            lines.append(f"  - {p['speaker_id']} = {p['name']}{email_part}")
         alias_instruction = (
-            f"\nIMPORTANT NAME MAPPING RULES:\n"
-            f"Use the following mapping to correct owner names found in the transcript.\n"
-            f"If you see a name matching a key (case-insensitive or partial match), replace it with the exact value.\n"
-            f"Mapping Table: {alias_json}\n"
+            "\nMEETING PARTICIPANTS (authoritative — use these exact names for owner assignment):\n"
+            + "\n".join(lines)
+            + "\nDo NOT invent names. If an action item's owner cannot be matched to this list, set owner to [].\n"
         )
+    else:
+        aliases = load_aliases()
+        alias_instruction = ""
+        if aliases:
+            alias_json = json.dumps(aliases, indent=2)
+            alias_instruction = (
+                f"\nIMPORTANT NAME MAPPING RULES:\n"
+                f"Use the following mapping to correct owner names found in the transcript.\n"
+                f"If you see a name matching a key (case-insensitive or partial match), replace it with the exact value.\n"
+                f"Mapping Table: {alias_json}\n"
+            )
 
     prompt = f"""You are an AI assistant that reviews meeting transcripts and action items.
 

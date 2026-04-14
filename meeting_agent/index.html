@@ -464,6 +464,55 @@
     .nudge-panel.pinned .pin-badge { display: block; }
 
     /* ═══════════════════════════════════════════════════════════════════════════
+       IN-PERSON MODE: Mode toggle + Recording controls
+       ═══════════════════════════════════════════════════════════════════════════ */
+
+    /* Mode toggle (Online / In-Person) */
+    .mode-toggle {
+      display: flex; gap: 3px;
+      background: rgba(255,255,255,0.04);
+      border-radius: var(--radius-sm); padding: 3px; margin-bottom: 2px;
+    }
+    .mode-btn {
+      flex: 1; padding: 5px 0; border: none; border-radius: 4px;
+      background: transparent; color: var(--muted);
+      font-size: 10px; cursor: pointer; transition: all 0.15s; font-weight: 500;
+    }
+    .mode-btn:hover { background: rgba(255,255,255,0.06); }
+    .mode-btn.active { background: var(--purple-dim); color: var(--purple); font-weight: 600; }
+
+    /* Recording controls (in-meeting, in-person only) */
+    .recording-header {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 0 4px; font-size: 10.5px; color: var(--text-dim);
+    }
+    .record-pulse {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--muted); flex-shrink: 0; transition: background 0.3s;
+    }
+    .record-pulse.active { background: var(--red); animation: pulse 1s infinite; }
+    .btn-record {
+      width: 100%; padding: 7px; border: none; border-radius: var(--radius-sm);
+      background: var(--green-dim); color: var(--green);
+      font-size: 11px; font-weight: 600; cursor: pointer; margin-bottom: 5px;
+      transition: background 0.15s;
+    }
+    .btn-record:hover { background: rgba(52,211,153,0.25); }
+    .btn-record.recording { background: var(--red-dim); color: var(--red); }
+    .btn-record.recording:hover { background: rgba(248,113,113,0.25); }
+
+    /* Live transcript preview box */
+    .live-transcript {
+      max-height: 72px; overflow-y: auto; background: rgba(255,255,255,0.02);
+      border: 1px solid var(--stroke); border-radius: 4px;
+      padding: 4px 6px; font-size: 10px; color: var(--text-dim);
+      line-height: 1.45; margin-bottom: 5px;
+    }
+    .live-transcript::-webkit-scrollbar { width: 3px; }
+    .live-transcript::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+    .live-transcript .lt-speaker { color: var(--purple); font-weight: 600; }
+
+    /* ═══════════════════════════════════════════════════════════════════════════
        UTILITY
        ═══════════════════════════════════════════════════════════════════════════ */
     .hidden { display: none !important; }
@@ -507,66 +556,119 @@
         <!-- Status Banner -->
         <div id="preBanner"></div>
 
+        <!-- Mode Toggle -->
+        <div class="settings-section" id="modeSwitchSection">
+          <h3>Meeting Mode</h3>
+          <div class="mode-toggle">
+            <button class="mode-btn active" id="modeOnlineBtn">🌐 Online</button>
+            <button class="mode-btn" id="modeInPersonBtn">🎤 In-Person</button>
+          </div>
+        </div>
+
         <!-- Connections -->
         <div class="settings-section">
           <h3>Connections</h3>
 
-          <!-- Fireflies -->
-          <div class="connection-row">
-            <span class="dot disconnected" id="ffDot">●</span>
-            <span class="service-name">Fireflies.ai</span>
-            <span class="service-status" id="ffStatus">Not connected</span>
-          </div>
-          <div class="input-row" id="ffInputRow">
-            <input type="password" class="edit-field" id="ffKeyInput" placeholder="Fireflies API Key" />
-            <button class="btn btn-primary btn-small" id="ffConnectBtn">Connect</button>
-          </div>
-          <div class="input-row hidden" id="ffDisconnectRow">
-            <button class="btn btn-undo btn-small" id="ffDisconnectBtn">Disconnect</button>
-          </div>
-
-          <!-- Google Calendar -->
-          <div class="connection-row" style="margin-top:6px">
-            <span class="dot disconnected" id="calDot">●</span>
-            <span class="service-name">Google Calendar</span>
-            <span class="service-status" id="calStatus">Not connected</span>
-          </div>
-          <div id="calInputRow">
-            <div class="input-row">
-              <input type="password" class="edit-field" id="calClientId" placeholder="OAuth Client ID" />
+          <!-- Fireflies (online mode only) -->
+          <div id="ffSection">
+            <div class="connection-row">
+              <span class="dot disconnected" id="ffDot">●</span>
+              <span class="service-name">Fireflies.ai</span>
+              <span class="service-status" id="ffStatus">Not connected</span>
             </div>
-            <div class="input-row" style="margin-top:3px">
-              <input type="password" class="edit-field" id="calClientSecret" placeholder="OAuth Client Secret" />
-              <button class="btn btn-primary btn-small" id="calConnectBtn">Connect</button>
+            <div class="input-row" id="ffInputRow">
+              <input type="password" class="edit-field" id="ffKeyInput" placeholder="Fireflies API Key" />
+              <button class="btn btn-primary btn-small" id="ffConnectBtn">Connect</button>
+            </div>
+            <div class="input-row hidden" id="ffDisconnectRow">
+              <button class="btn btn-undo btn-small" id="ffDisconnectBtn">Disconnect</button>
             </div>
           </div>
-          <div class="input-row hidden" id="calDisconnectRow">
-            <button class="btn btn-undo btn-small" id="calDisconnectBtn">Disconnect</button>
+
+          <!-- Google Calendar (both modes — needed for push-to-calendar in post-meeting) -->
+          <div id="calSection" style="margin-top:6px">
+            <div class="connection-row">
+              <span class="dot disconnected" id="calDot">●</span>
+              <span class="service-name">Google Calendar</span>
+              <span class="service-status" id="calStatus">Not connected</span>
+            </div>
+            <div id="calInputRow">
+              <div class="input-row">
+                <input type="password" class="edit-field" id="calClientId" placeholder="OAuth Client ID" />
+              </div>
+              <div class="input-row" style="margin-top:3px">
+                <input type="password" class="edit-field" id="calClientSecret" placeholder="OAuth Client Secret" />
+                <button class="btn btn-primary btn-small" id="calConnectBtn">Connect</button>
+              </div>
+            </div>
+            <div class="input-row hidden" id="calDisconnectRow">
+              <button class="btn btn-undo btn-small" id="calDisconnectBtn">Disconnect</button>
+            </div>
           </div>
 
-          <!-- Gemini -->
-          <div class="connection-row" style="margin-top:6px">
-            <span class="dot disconnected" id="gemDot">●</span>
-            <span class="service-name">Google Gemini</span>
-            <span class="service-status" id="gemStatus">Not connected</span>
+          <!-- Gemini (both modes) -->
+          <div style="margin-top:6px">
+            <div class="connection-row">
+              <span class="dot disconnected" id="gemDot">●</span>
+              <span class="service-name">Google Gemini</span>
+              <span class="service-status" id="gemStatus">Not connected</span>
+            </div>
+            <div class="input-row" id="gemInputRow">
+              <input type="password" class="edit-field" id="gemKeyInput" placeholder="Gemini API Key" />
+              <button class="btn btn-primary btn-small" id="gemConnectBtn">Connect</button>
+            </div>
+            <div class="input-row hidden" id="gemDisconnectRow">
+              <button class="btn btn-undo btn-small" id="gemDisconnectBtn">Disconnect</button>
+            </div>
           </div>
-          <div class="input-row" id="gemInputRow">
-            <input type="password" class="edit-field" id="gemKeyInput" placeholder="Gemini API Key" />
-            <button class="btn btn-primary btn-small" id="gemConnectBtn">Connect</button>
-          </div>
-          <div class="input-row hidden" id="gemDisconnectRow">
-            <button class="btn btn-undo btn-small" id="gemDisconnectBtn">Disconnect</button>
+
+          <!-- Deepgram (in-person mode only) -->
+          <div id="deepgramSection" class="hidden" style="margin-top:6px">
+            <div class="connection-row">
+              <span class="dot disconnected" id="dgDot">●</span>
+              <span class="service-name">Deepgram</span>
+              <span class="service-status" id="dgStatus">Not connected</span>
+            </div>
+            <div class="input-row" id="dgInputRow">
+              <input type="password" class="edit-field" id="dgKeyInput" placeholder="Deepgram API Key" />
+              <button class="btn btn-primary btn-small" id="dgConnectBtn">Connect</button>
+            </div>
+            <div class="input-row hidden" id="dgDisconnectRow">
+              <button class="btn btn-undo btn-small" id="dgDisconnectBtn">Disconnect</button>
+            </div>
           </div>
         </div>
 
-        <!-- Upcoming Events -->
-        <div class="settings-section">
+        <!-- Upcoming Events (online mode only — calendar integration) -->
+        <div class="settings-section" id="upcomingEventsSection">
           <h3>Upcoming Events</h3>
           <div id="upcomingEvents"><div class="empty-state">Connect Google Calendar to see events.</div></div>
         </div>
 
-        <!-- Name Aliases -->
-        <div class="settings-section">
+        <!-- Meeting Participants (in-person mode only) -->
+        <!-- Each participant: speaker ID + real name + email for Calendar push. -->
+        <!-- Stored separately in participants.json — NOT aliases.json. -->
+        <div class="settings-section hidden" id="participantsSection">
+          <h3>Meeting Participants</h3>
+          <p style="font-size:10px;color:var(--text-dim);margin:0 0 6px">
+            Add each person who will be in the room. Deepgram assigns Speaker labels automatically.
+            Ask each participant to say <em>"My name is [NAME] and I am Speaker [X]"</em> at the start of the meeting to confirm their label.
+          </p>
+          <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:4px">
+            <div class="input-row">
+              <input type="text" class="edit-field" id="participantLabel" placeholder="Speaker 0" style="max-width:82px" />
+              <input type="text" class="edit-field" id="participantName" placeholder="Full Name" />
+            </div>
+            <div class="input-row">
+              <input type="email" class="edit-field" id="participantEmail" placeholder="email@example.com" style="flex:1" />
+              <button class="btn btn-primary btn-small" id="addParticipantBtn">Add</button>
+            </div>
+          </div>
+          <div id="participantList" style="margin-top:4px"></div>
+        </div>
+
+        <!-- Name Aliases (online mode only — fuzzy name correction for Fireflies transcripts) -->
+        <div class="settings-section" id="aliasesSection">
           <h3>Name Aliases</h3>
           <p style="font-size:10px;color:var(--text-dim);margin:0 0 4px">Map misspellings to correct names for Gemini.</p>
           <div class="input-row">
@@ -588,6 +690,19 @@
 
       <!-- ═══ IN-MEETING PHASE ═══ -->
       <div class="phase-content" id="phaseInContent">
+
+        <!-- In-Person Recording Controls (hidden in online mode) -->
+        <div id="recordingControls" class="hidden">
+          <div class="section-label" style="padding-top:8px">Recording</div>
+          <div class="recording-header">
+            <span class="record-pulse" id="recordPulse"></span>
+            <span id="recordStatusText">Ready to record</span>
+          </div>
+          <button class="btn-record" id="recordBtn">Start Recording</button>
+          <div class="live-transcript hidden" id="liveTranscript"></div>
+          <div class="sep"></div>
+        </div>
+
         <!-- Agenda Questions -->
         <div class="section-label">Agenda Questions</div>
         <div id="agendaList"></div>
