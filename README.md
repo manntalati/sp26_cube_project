@@ -254,8 +254,13 @@ The Meeting Agent connects to several external services. You will set these up i
 
 #### Required for Calendar Integration
 - **Google Calendar (OAuth)**
-  - No key to copy — you will authorize via your Google account directly inside the app
-  - You need a Google account with Calendar access
+  1. Go to the [Google Cloud Console](https://console.cloud.google.com) and create a project
+  2. Enable the **Google Calendar API** for that project
+  3. Go to **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**
+  4. Choose **Web application**, and add `http://localhost:5002/api/auth/google/callback` as an authorized redirect URI
+  5. Download or copy the Client ID and Client Secret
+  6. In `meeting_agent/backend/`, copy `client_secrets.json.example` to `client_secrets.json` and fill in your Client ID and Client Secret — **this is a one-time setup step**
+  7. Inside the app, just click "Connect with Google" — no credentials entry in the UI
 
 ---
 
@@ -291,9 +296,9 @@ When the app opens, you will see the **Dashboard** with connection cards for eac
 - Your recent transcripts will appear in the dashboard once connected
 
 #### 3. Connect Google Calendar (optional but recommended)
-- Click the Calendar card
-- Click "Connect with Google"
-- Complete the OAuth flow in your browser
+- Ensure you have completed the `client_secrets.json` one-time setup (see Step 4 above)
+- Click "Connect with Google" — a browser window will open for Google authorization
+- Complete the OAuth flow and return to the app
 - Upcoming events will appear in the dashboard
 
 #### 4. Connect Deepgram (for In-Person Mode only)

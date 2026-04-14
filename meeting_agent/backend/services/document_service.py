@@ -53,7 +53,7 @@ def chunk_text(text):
 
 def _get_client(api_key):
     from google import genai
-    return genai.Client(api_key=api_key)
+    return genai.Client(api_key=api_key, http_options={'api_version': 'v1'})
 
 
 def embed_chunks(chunks, api_key):

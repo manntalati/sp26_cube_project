@@ -1466,7 +1466,7 @@ function handleCreateItem() {
   actionItems.push(newItem);
   activeActionTab = 'approved';
   saveAndRender();
-  renderSummaryGenerator();
+  renderAutoSummary();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1880,72 +1880,140 @@ async function startDemo() {
   $('demoBtn').textContent = '■';
   $('demoBtn').title = 'Stop Demo';
 
-  // 1. Enable demo mode on backend (populates mock data)
+  // 1. Enable demo mode on backend (populates transcripts, analysis, calendar events, participants)
   await API.enableDemo();
 
-  // 2. Refresh connections — they should now all be connected
+  // 2. Inject mock document so document-context feature is visible in pre-meeting
+  uploadedDocuments = [
+    { id: 'demo_doc_q3', name: 'Q3 Strategic Plan.pdf', chunk_count: 12 },
+  ];
+
+  // 3. Refresh connections — all three should now show green
   await refreshAuthStatus();
   await loadTranscripts();
 
-  // 3. Show Pre-Meeting phase with everything green
+  // 4. Show Pre-Meeting: connections, upcoming events, and the document panel
   switchPhase('pre');
   phaseNav.classList.add('show');
+  renderDocumentPanel();   // ensure doc shows in pre-meeting panel
 
-  // 4. After a pause, auto-switch to In-Meeting with agenda loaded
+  // 5. After a brief pause, switch to In-Meeting with the demo agenda loaded
   demoTimers.push(setTimeout(() => {
     window.setAgenda(DEMO_AGENDA);
     switchPhase('in');
     phaseNav.classList.add('show');
     phaseInContent.classList.add('show');
 
-    // 5. Run the nudge script (timed nudges during "meeting")
+    // 5a. Demo document search — reveal the panel and inject mock context at t+6 s
+    demoTimers.push(setTimeout(() => {
+      if (!demoActive || currentPhase !== 'in') return;
+      const inMeetingSearch = $('inMeetingDocSearch');
+      const searchInput     = $('docSearchInput');
+      const resultsEl       = $('docSearchResults');
+      if (inMeetingSearch && searchInput && resultsEl) {
+        inMeetingSearch.classList.remove('hidden');
+        searchInput.value = 'Q3 revenue target';
+        resultsEl.innerHTML = `
+          <div class="doc-search-result">
+            <div class="result-source">📄 Q3 Strategic Plan.pdf</div>
+            <div class="result-chunk">Q3 revenue target: $4.2M (28 % YoY increase). Key drivers include the analytics platform launch and the expanded enterprise tier pricing rollout in May.</div>
+          </div>`;
+        requestResize();
+      }
+    }, 6000));
+
+    // 5b. Timed nudges during the "meeting" (mirrors DEMO_NUDGE_SCRIPT)
     DEMO_NUDGE_SCRIPT.forEach(([delaySec, qIdx, reason]) => {
       demoTimers.push(setTimeout(() => {
-        if (demoActive && currentPhase === 'in') {
-          showNudge(qIdx, reason);
-        }
+        if (demoActive && currentPhase === 'in') showNudge(qIdx, reason);
       }, delaySec * 1000));
     });
 
-    // 6. Run the cover script (auto-answer questions)
+    // 5c. Auto-cover questions (mirrors DEMO_COVER_SCRIPT)
     DEMO_COVER_SCRIPT.forEach(([delaySec, qIdx]) => {
       demoTimers.push(setTimeout(() => {
-        if (demoActive && currentPhase === 'in') {
-          window.markCovered(qIdx);
-        }
+        if (demoActive && currentPhase === 'in') window.markCovered(qIdx);
       }, delaySec * 1000));
     });
 
-    // 7. After the meeting simulation, auto-switch to Post-Meeting
+    // 6. After the in-meeting simulation, switch to Post-Meeting
     demoTimers.push(setTimeout(() => {
-      if (demoActive) {
-        meetingActive = false;
-        switchPhase('post');
-        phaseNav.classList.add('show');
+      if (!demoActive) return;
+      meetingActive = false;
+      switchPhase('post');
+      phaseNav.classList.add('show');
 
-        // Auto-select the first transcript after a brief pause
-        demoTimers.push(setTimeout(async () => {
-          if (demoActive && transcripts.length > 0) {
-            await selectTranscript(transcripts[0].id);
-          }
-          // Inject demo approved items so the Generate button appears
+      // 6a. Auto-select the first transcript — starts on PENDING tab so flags are visible
+      demoTimers.push(setTimeout(async () => {
+        if (!demoActive || transcripts.length === 0) return;
+        await selectTranscript(transcripts[0].id);
+        // Viewer now sees pending items with description_flag, owner_flag, gap_notes
+
+        // 6b. Staggered approve/reject to demonstrate the review workflow
+        //     IDs match DEMO_ACTION_ITEMS_Q3: 1-6
+        const reviewScript = [
+          [3000,  1, 'approved'],  // Q3 budget proposal — clean item
+          [4500,  3, 'approved'],  // 1:1 scheduling
+          [6000,  2, 'approved'],  // vendor evaluation (has description_flag → visible then approved)
+          [7500,  4, 'rejected'],  // DevOps migration — reject to show owner_flag in action
+          [9000,  5, 'approved'],  // customer interview script (suggested, no deadline)
+          [9500,  6, 'approved'],  // project timeline update
+        ];
+        reviewScript.forEach(([delay, id, action]) => {
           demoTimers.push(setTimeout(() => {
-            if (demoActive) {
-              // Merge demo approved items into actionItems
-              DEMO_APPROVED_ITEMS.forEach(di => {
-                if (!actionItems.find(ai => ai.id === di.id)) {
-                  actionItems.push({ ...di });
-                }
-              });
-              activeActionTab = 'approved';
-              renderActionItems();
-              renderSummaryGenerator();
-              renderVCEmailSection();
-              requestResize();
-            }
-          }, 800));
-        }, 1500));
-      }
+            if (!demoActive) return;
+            setItemStatus(id, action);
+          }, delay));
+        });
+
+        // 6c. Switch to Approved tab after review is done
+        demoTimers.push(setTimeout(() => {
+          if (!demoActive) return;
+          activeActionTab = 'approved';
+          renderActionItems();
+          renderAutoSummary();
+          renderVCEmailSection();
+          requestResize();
+        }, 11000));
+
+        // 6d. Demo formality slider — advance to "Professional" (level 3)
+        demoTimers.push(setTimeout(() => {
+          if (!demoActive) return;
+          const slider = $('formalitySlider');
+          if (slider) {
+            slider.value = '3';
+            slider.dispatchEvent(new Event('input'));
+          }
+        }, 14000));
+
+        // 6e. Push approved items to calendar
+        demoTimers.push(setTimeout(() => {
+          if (!demoActive) return;
+          handlePushToCalendar();
+        }, 17000));
+
+        // 6f. Auto-fill VC email form fields
+        demoTimers.push(setTimeout(() => {
+          if (!demoActive) return;
+          const cn = $('vcCompanyName'); if (cn) cn.value = 'Acme Corp';
+          const fn = $('vcFounderName'); if (fn) fn.value = 'Sarah Chen';
+          const vn = $('vcVcName');      if (vn) vn.value = 'Alex Rivera';
+          const vf = $('vcVcFirm');      if (vf) vf.value = 'Summit Capital';
+          // Click "Pursue" decision button
+          const pursueBtn = $('vcPursueBtn');
+          if (pursueBtn) pursueBtn.click();
+        }, 20000));
+
+        // 6g. Fill reason and click Generate
+        demoTimers.push(setTimeout(() => {
+          if (!demoActive) return;
+          const ri = $('vcReasonInput');
+          if (ri) ri.value = 'Strong execution track record and Q3 targets align with our thesis.';
+          const genBtn = $('generateEmailBtn');
+          if (genBtn) genBtn.click();
+        }, 22000));
+
+      }, 1500));
     }, 42 * 1000));
 
   }, 3000));
@@ -1975,6 +2043,25 @@ async function stopDemo() {
   inPersonSessionId = null;
   participants = [];
   dismissNudge();
+
+  // Clear demo documents
+  uploadedDocuments = [];
+  renderDocumentPanel();
+
+  // Clear VC email state and form fields
+  vcEmailData = null;
+  vcDecision = null;
+  ['vcCompanyName', 'vcFounderName', 'vcVcName', 'vcVcFirm', 'vcReasonInput'].forEach(id => {
+    const el = $(id); if (el) el.value = '';
+  });
+  const vcOut = $('vcEmailOutput'); if (vcOut) vcOut.innerHTML = '';
+  const vcReason = $('vcReasonSection'); if (vcReason) vcReason.classList.add('hidden');
+  const pBtn = $('vcPursueBtn'); if (pBtn) pBtn.className = 'vc-decision-btn';
+  const xBtn = $('vcPassBtn');   if (xBtn) xBtn.className = 'vc-decision-btn';
+
+  // Clear in-meeting doc search
+  const si = $('docSearchInput');     if (si) si.value = '';
+  const sr = $('docSearchResults');   if (sr) sr.innerHTML = '';
 
   await refreshAuthStatus();
   switchPhase('pre');

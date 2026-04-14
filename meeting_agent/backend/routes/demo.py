@@ -196,13 +196,21 @@ def enable_demo():
         "api_key": "demo_key",
     }
 
-    # 2. Populate analysis store with ready results
+    # 2. Populate analysis store with ready results (includes TL;DRs at all formality levels)
     ANALYSIS_STORE["demo_q3_planning"] = {
         "transcript_id": "demo_q3_planning",
         "status": "ready",
         "items": DEMO_ACTION_ITEMS_Q3,
         "error": None,
         "updated_at_ms": int(time.time() * 1000),
+        "grounded_by_docs": True,
+        "tldrs": {
+            "tldr_0": "Quick recap: 42-min Q3 planning sync. We locked in 6 action items and hit 3 of 5 agenda topics — 2 things still need follow-up.",
+            "tldr_1": "Here's the gist: The team met ~42 min for Q3 planning. Six action items came out of it, covering budgets, vendor eval, and the staging migration. Two agenda topics are still open.",
+            "tldr_2": "This Q3 planning session (approx. 42 min) produced 6 action items spanning budget, vendor evaluation, and infrastructure. Three of five agenda topics were addressed; two remain open.",
+            "tldr_3": "Executive Summary: The Q3 planning session (approx. 42 minutes) produced 6 action items aligned with revenue targets and product milestones. Three of five agenda topics received substantive discussion; two require further resolution.",
+            "tldr_4": "Meeting Synopsis: The convened Q3 planning session (approximately 42 minutes) concluded with 6 formally identified action items spanning budgetary, procurement, and infrastructure domains. Three of five agenda points received substantive discussion; two matters remain unresolved and necessitate subsequent follow-up.",
+        },
     }
     ANALYSIS_STORE["demo_sprint_retro"] = {
         "transcript_id": "demo_sprint_retro",
@@ -210,6 +218,14 @@ def enable_demo():
         "items": DEMO_ACTION_ITEMS_RETRO,
         "error": None,
         "updated_at_ms": int(time.time() * 1000),
+        "grounded_by_docs": False,
+        "tldrs": {
+            "tldr_0": "Quick recap: 30-min sprint retro. Three action items came out — CI improvements, a post-mortem, and a PR review process overhaul.",
+            "tldr_1": "Here's the gist: Sprint 14 retro ran 30 min. The team flagged flaky tests, the payments outage post-mortem, and slow PR reviews as the main takeaways.",
+            "tldr_2": "Sprint 14 retrospective (30 min) produced 3 action items: automated flaky-test detection, a payments outage post-mortem, and a PR review turnaround improvement.",
+            "tldr_3": "Executive Summary: The Sprint 14 retrospective (30 minutes) identified 3 action items focused on CI reliability, incident documentation, and code review velocity.",
+            "tldr_4": "Meeting Synopsis: The Sprint 14 retrospective (approximately 30 minutes) concluded with 3 formally identified action items addressing CI pipeline reliability, post-incident documentation, and pull request review process improvements.",
+        },
     }
 
     # 3. Seed participants

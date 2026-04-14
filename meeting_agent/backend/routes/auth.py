@@ -124,19 +124,19 @@ def auth_google():
     flow = get_google_auth_flow(client_id=client_id, client_secret=client_secret)
     if not flow:
         return jsonify({"success": False, "error": "Failed to initialize Google OAuth flow"}), 500
-        
-    # Generate URL for request to Google's OAuth 2.0 server.
+
     authorization_url, state = flow.authorization_url(
         access_type='offline',
-        include_granted_scopes='true')
-    
+        include_granted_scopes='true'
+    )
+
     # Persist credentials keyed by the OAuth state param to disk so the callback
     # can retrieve them even in a different process (Werkzeug debug reloader).
     _add_oauth_flow(state, {
         'client_id': client_id,
         'client_secret': client_secret
     })
-    
+
     return jsonify({"auth_url": authorization_url})
 
 
@@ -145,15 +145,11 @@ def auth_google_callback():
     """Handles the OAuth 2.0 server response."""
     state = request.args.get('state')
     
-    # Look up the credentials saved during the initial /google POST (read from disk)
     pending = _pop_oauth_flow(state) if state else None
     if not pending:
         return "OAuth state not found. Please try connecting again. (state=" + str(state) + ")", 400
-    
-    client_id = pending['client_id']
-    client_secret = pending['client_secret']
-    
-    flow = get_google_auth_flow(client_id=client_id, client_secret=client_secret)
+
+    flow = get_google_auth_flow(client_id=pending['client_id'], client_secret=pending['client_secret'])
     if not flow:
         return "Server config error", 500
 
