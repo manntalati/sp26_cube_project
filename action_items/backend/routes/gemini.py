@@ -1,6 +1,11 @@
 from flask import Blueprint, jsonify, request
 from services.fireflies_service import get_transcript_full
-from services.gemini_service import analyze_action_items, generate_vc_emails
+from services.gemini_service import (
+    analyze_action_items,
+    generate_vc_emails,
+    normalize_agent_role,
+    DEFAULT_AGENT_ROLE,
+)
 from routes.auth import CONNECTED_ACCOUNTS, is_connected
 from services.background_analysis import enqueue_analysis, get_analysis_record, update_analysis_record
 
@@ -31,12 +36,13 @@ def enqueue():
     data = request.json or {}
     transcript_id = data.get("transcript_id")
     force = data.get("force", False)
+    role = normalize_agent_role(data.get("role"))
     if not transcript_id:
         return jsonify({"success": False, "error": "transcript_id is required"}), 400
 
     api_key = CONNECTED_ACCOUNTS["fireflies"]["api_key"]
     gemini_key = CONNECTED_ACCOUNTS["gemini"]["api_key"]
-    ok, rec = enqueue_analysis(transcript_id, api_key, gemini_key, force=force)
+    ok, rec = enqueue_analysis(transcript_id, api_key, gemini_key, force=force, role=role)
     if not ok:
         return jsonify({"success": False, "error": rec.get("error", "Failed to enqueue")}), 400
 
@@ -56,12 +62,18 @@ def analyze_transcript():
 
     data = request.json or {}
     transcript_id = data.get("transcript_id")
+    role = normalize_agent_role(data.get("role"))
     if not transcript_id:
         return jsonify({"success": False, "error": "transcript_id is required"}), 400
 
-    # Fast path: return cached result if already ready
+    # Fast path: return cached result if already ready (must match the role used for that run)
     cached = get_analysis_record(transcript_id)
-    if cached.get("status") == "ready" and cached.get("items") is not None:
+    cached_role = cached.get("agent_role") or DEFAULT_AGENT_ROLE
+    if (
+        cached.get("status") == "ready"
+        and cached.get("items") is not None
+        and cached_role == role
+    ):
         return jsonify({"success": True, "items": cached["items"], "cached": True})
 
     api_key = CONNECTED_ACCOUNTS["fireflies"]["api_key"]
@@ -74,7 +86,7 @@ def analyze_transcript():
     transcript_text = ff_result.get("transcript_text", "")
     action_items = ff_result.get("action_items", [])
 
-    ok, gemini_result = analyze_action_items(transcript_text, action_items, api_key=gemini_key)
+    ok, gemini_result = analyze_action_items(transcript_text, action_items, api_key=gemini_key, role=role)
     if not ok:
         return jsonify({"success": False, "error": f"Gemini analysis failed: {gemini_result}"}), 500
 

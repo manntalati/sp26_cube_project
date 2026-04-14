@@ -1,8 +1,52 @@
 import os
 import json
+from typing import Optional
 from google import genai
 from dotenv import load_dotenv
 from routes.settings import load_aliases
+
+DEFAULT_AGENT_ROLE = "Engineer"
+
+# Canonical role labels used by the API and UI.
+_VALID_ROLES = frozenset({"Engineer", "Executive", "VC", "Sales"})
+
+_ROLE_INSTRUCTION_BLOCKS = {
+    "Engineer": """## Role perspective (Engineer)
+When enriching and interpreting the transcript, prioritize: action items, technical decisions, engineering blockers, and implementation details (who does technical work, what must ship, by when).
+Deprioritize: high-level business storytelling, fundraising, or sales-cycle detail unless it directly clarifies an engineering task or owner.""",
+    "Executive": """## Role perspective (Executive)
+When enriching and interpreting the transcript, prioritize: decisions already made or pending, blockers that need escalation, key risks, and a high-level timeline of commitments.
+Deprioritize: deep implementation minutiae unless it affects delivery dates, ownership at the exec level, or escalations.""",
+    "VC": """## Role perspective (VC)
+When enriching and interpreting the transcript, prioritize: market and growth signals, team strength and execution signals, strategic pivots or directional changes, and any fundraising or runway mentions tied to milestones.
+Deprioritize: granular implementation steps unless they indicate team capacity, velocity, or product-market fit.""",
+    "Sales": """## Role perspective (Sales)
+When enriching and interpreting the transcript, prioritize: customer pain points, objections or concerns raised, follow-up commitments and next steps with customers, and buying signals (budget, timing, champions, procurement).
+Deprioritize: internal engineering backlog detail unless it affects a customer-facing commitment or deadline.""",
+}
+
+
+def normalize_agent_role(role: Optional[str]) -> str:
+    """Maps client input to a canonical role; defaults to Engineer."""
+    if not role or not isinstance(role, str):
+        return DEFAULT_AGENT_ROLE
+    cleaned = role.strip()
+    if cleaned in _VALID_ROLES:
+        return cleaned
+    key = cleaned.lower()
+    aliases = {
+        "engineer": "Engineer",
+        "executive": "Executive",
+        "vc": "VC",
+        "venture": "VC",
+        "sales": "Sales",
+    }
+    return aliases.get(key, DEFAULT_AGENT_ROLE)
+
+
+def _role_instruction_block(role: str) -> str:
+    canonical = normalize_agent_role(role)
+    return _ROLE_INSTRUCTION_BLOCKS.get(canonical, _ROLE_INSTRUCTION_BLOCKS[DEFAULT_AGENT_ROLE])
 
 # Try to load from root directory, fallback to current dir
 env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
@@ -138,7 +182,12 @@ Return ONLY a valid JSON object. No markdown fences, no extra text.
         return False, str(e)
 
 
-def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_key: str = None) -> tuple[bool, any]:
+def analyze_action_items(
+    transcript_text: str,
+    raw_action_items: list[str],
+    api_key: str = None,
+    role: Optional[str] = None,
+) -> tuple[bool, any]:
     """
     Sends the meeting transcript and Fireflies-extracted action items to Gemini.
 
@@ -176,7 +225,11 @@ def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_
             f"Mapping Table: {alias_json}\n"
         )
 
+    role_instruction = _role_instruction_block(role)
+
     prompt = f"""You are an AI assistant that reviews meeting transcripts and action items.
+
+{role_instruction}
 
 ## Your task
 Given the meeting transcript and the list of action items already extracted by a transcription tool:
