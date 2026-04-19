@@ -18,6 +18,9 @@ from routes.calendar_api import calendar_bp
 from routes.gemini import gemini_bp
 from routes.settings import settings_bp
 from routes.demo import demo_bp
+from routes.inperson import inperson_bp
+from routes.participants import participants_bp
+from routes.documents import documents_bp
 from services.background_analysis import start_background_worker
 
 app = Flask(__name__)
@@ -25,7 +28,18 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev_secret_key_123')
 
 # Enable CORS for the frontend app
-CORS(app, supports_credentials=True, origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5002", "http://127.0.0.1:5002", "file://"])
+CORS(
+    app,
+    supports_credentials=True,
+    origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5002",
+        "http://127.0.0.1:5002",
+        "file://",
+        "null",
+    ],
+)
 
 # Register blueprints
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
@@ -34,6 +48,9 @@ app.register_blueprint(calendar_bp, url_prefix='/api/calendar')
 app.register_blueprint(gemini_bp, url_prefix='/api/gemini')
 app.register_blueprint(settings_bp, url_prefix='/api/settings')
 app.register_blueprint(demo_bp, url_prefix='/api/demo')
+app.register_blueprint(inperson_bp, url_prefix='/api/inperson')
+app.register_blueprint(participants_bp, url_prefix='/api/participants')
+app.register_blueprint(documents_bp, url_prefix='/api/documents')
 
 # Start background analysis worker (avoid double-start in debug reloader)
 if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:

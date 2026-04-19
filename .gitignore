@@ -1,2 +1,7 @@
 .env
 node_modules/
+venv/
+__pycache__/
+*.pyc
+.venv/
+meeting_agent/backend/client_secrets.json.example
