@@ -1,52 +1,8 @@
 import os
 import json
-from typing import Optional
 from google import genai
 from dotenv import load_dotenv
 from routes.settings import load_aliases
-
-DEFAULT_AGENT_ROLE = "Engineer"
-
-# Canonical role labels used by the API and UI.
-_VALID_ROLES = frozenset({"Engineer", "Executive", "VC", "Sales"})
-
-_ROLE_INSTRUCTION_BLOCKS = {
-    "Engineer": """## Role perspective (Engineer)
-When enriching and interpreting the transcript, prioritize: action items, technical decisions, engineering blockers, and implementation details (who does technical work, what must ship, by when).
-Deprioritize: high-level business storytelling, fundraising, or sales-cycle detail unless it directly clarifies an engineering task or owner.""",
-    "Executive": """## Role perspective (Executive)
-When enriching and interpreting the transcript, prioritize: decisions already made or pending, blockers that need escalation, key risks, and a high-level timeline of commitments.
-Deprioritize: deep implementation minutiae unless it affects delivery dates, ownership at the exec level, or escalations.""",
-    "VC": """## Role perspective (VC)
-When enriching and interpreting the transcript, prioritize: market and growth signals, team strength and execution signals, strategic pivots or directional changes, and any fundraising or runway mentions tied to milestones.
-Deprioritize: granular implementation steps unless they indicate team capacity, velocity, or product-market fit.""",
-    "Sales": """## Role perspective (Sales)
-When enriching and interpreting the transcript, prioritize: customer pain points, objections or concerns raised, follow-up commitments and next steps with customers, and buying signals (budget, timing, champions, procurement).
-Deprioritize: internal engineering backlog detail unless it affects a customer-facing commitment or deadline.""",
-}
-
-
-def normalize_agent_role(role: Optional[str]) -> str:
-    """Maps client input to a canonical role; defaults to Engineer."""
-    if not role or not isinstance(role, str):
-        return DEFAULT_AGENT_ROLE
-    cleaned = role.strip()
-    if cleaned in _VALID_ROLES:
-        return cleaned
-    key = cleaned.lower()
-    aliases = {
-        "engineer": "Engineer",
-        "executive": "Executive",
-        "vc": "VC",
-        "venture": "VC",
-        "sales": "Sales",
-    }
-    return aliases.get(key, DEFAULT_AGENT_ROLE)
-
-
-def _role_instruction_block(role: str) -> str:
-    canonical = normalize_agent_role(role)
-    return _ROLE_INSTRUCTION_BLOCKS.get(canonical, _ROLE_INSTRUCTION_BLOCKS[DEFAULT_AGENT_ROLE])
 
 # Try to load from root directory, fallback to current dir
 env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
@@ -75,119 +31,7 @@ def validate_gemini_key(api_key: str) -> tuple[bool, str]:
         return False, str(e)
 
 
-def generate_vc_emails(
-    company_name: str,
-    founder_name: str,
-    vc_name: str,
-    vc_firm: str,
-    meeting_title: str,
-    tldr: str,
-    action_items: list[str],
-    decision: str = None,
-    reason: str = None,
-    api_key: str = None,
-) -> tuple[bool, any]:
-    """
-    Generates a continuation OR rejection follow-up email for a VC post-meeting.
-    decision: 'pursue' | 'pass'
-    reason: 1-3 sentence reason from the VC
-
-    Returns (True, {"continuation": {"subject": str, "body": str},
-                    "rejection":     {"subject": str, "body": str}})
-         or (False, error_message_str)
-    """
-    try:
-        client = _get_client(api_key=api_key)
-    except ValueError as e:
-        return False, str(e)
-
-    action_items_block = (
-        "\n".join(f"- {item}" for item in action_items)
-        if action_items
-        else "(none discussed)"
-    )
-
-    decision_instruction = ""
-    if decision == "pursue":
-        decision_instruction = "The VC has decided to PURSUE this company."
-    elif decision == "pass":
-        decision_instruction = "The VC has decided to PASS on this company."
-
-    reason_instruction = f"The VC's stated reason: \"{reason}\"" if reason else "(no reason provided)"
-
-    prompt = f"""You are a venture capitalist writing concise, professional post-meeting follow-up emails.
-
-## Context
-- Meeting title: {meeting_title}
-- Startup: {company_name}
-- Founder name: {founder_name}
-- VC name (sender): {vc_name}
-- VC firm: {vc_firm}
-- Meeting summary (TL;DR): {tldr or "(not available)"}
-- Key action items discussed:
-{action_items_block}
-- Decision: {decision_instruction}
-- {reason_instruction}
-
-## Your task
-Write TWO emails in the VC's voice (even if a decision is provided, always return both):
-
-1. **Continuation email** — The VC wants to move forward. Naturally incorporate the VC's stated reason if provided. Warm but professional. 3-5 short paragraphs.
-
-2. **Rejection (pass) email** — The VC is passing. Naturally incorporate the VC's stated reason if provided. Be respectful and brief. 2-3 short paragraphs.
-
-## Output format
-Return ONLY a valid JSON object. No markdown fences, no extra text.
-{{
-  "continuation": {{
-    "subject": "<email subject line>",
-    "body": "<full email body, use \\n for line breaks>"
-  }},
-  "rejection": {{
-    "subject": "<email subject line>",
-    "body": "<full email body, use \\n for line breaks>"
-  }}
-}}
-"""
-
-    try:
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-        )
-        text = response.text.strip()
-
-        # Strip accidental markdown fences if present
-        if text.startswith("```"):
-            lines = text.splitlines()
-            text = "\n".join(
-                line for line in lines
-                if not line.startswith("```")
-            ).strip()
-
-        result = json.loads(text)
-
-        # Validate expected shape
-        for key in ("continuation", "rejection"):
-            if key not in result:
-                raise ValueError(f"Missing '{key}' key in Gemini response")
-            if "subject" not in result[key] or "body" not in result[key]:
-                raise ValueError(f"Missing subject/body in '{key}' email")
-
-        return True, result
-
-    except json.JSONDecodeError as e:
-        return False, f"Failed to parse Gemini response as JSON: {e}"
-    except Exception as e:
-        return False, str(e)
-
-
-def analyze_action_items(
-    transcript_text: str,
-    raw_action_items: list[str],
-    api_key: str = None,
-    role: Optional[str] = None,
-) -> tuple[bool, any]:
+def analyze_action_items(transcript_text: str, raw_action_items: list[str], api_key: str = None) -> tuple[bool, any]:
     """
     Sends the meeting transcript and Fireflies-extracted action items to Gemini.
 
@@ -225,11 +69,7 @@ def analyze_action_items(
             f"Mapping Table: {alias_json}\n"
         )
 
-    role_instruction = _role_instruction_block(role)
-
     prompt = f"""You are an AI assistant that reviews meeting transcripts and action items.
-
-{role_instruction}
 
 ## Your task
 Given the meeting transcript and the list of action items already extracted by a transcription tool:

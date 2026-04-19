@@ -437,80 +437,6 @@
     /* ═══════════════════════════════════════════════════════════════════════════
        GENERATE MEETING SUMMARY
        ═══════════════════════════════════════════════════════════════════════════ */
-    /* VC Follow-Up Email Generator */
-    #vcEmailSection { margin-top: 6px; }
-    .vc-email-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 4px 0 2px;
-    }
-    .btn-generate-email {
-      font-size: 10px; padding: 3px 10px; border-radius: 4px; border: none; cursor: pointer;
-      background: var(--accent); color: #fff; font-weight: 600; transition: opacity 0.15s;
-    }
-    .btn-generate-email:hover { opacity: 0.85; }
-    .btn-generate-email:disabled { opacity: 0.4; cursor: default; }
-    .vc-context-row {
-      display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap;
-    }
-    .vc-context-row input { flex: 1; min-width: 100px; }
-
-    /* Pursue / Pass toggle */
-    .vc-decision-row {
-      display: flex; gap: 6px; margin-bottom: 6px;
-    }
-    .vc-decision-btn {
-      flex: 1; font-size: 11px; font-weight: 600; padding: 5px 0; border-radius: 5px;
-      border: 1.5px solid var(--border); background: transparent; color: var(--text-dim);
-      cursor: pointer; text-align: center; transition: all 0.15s;
-    }
-    .vc-decision-btn.selected-pursue {
-      background: var(--green); color: #fff; border-color: var(--green);
-    }
-    .vc-decision-btn.selected-pass {
-      background: var(--red); color: #fff; border-color: var(--red);
-    }
-
-    /* Reason textarea */
-    .vc-reason-label {
-      font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
-      color: var(--text-dim); margin-bottom: 3px;
-    }
-    .vc-reason-input {
-      width: 100%; box-sizing: border-box; font-size: 10.5px; line-height: 1.5;
-      padding: 5px 7px; border-radius: 4px; border: 1px solid var(--border);
-      background: var(--surface); color: var(--text); resize: vertical;
-      min-height: 48px; margin-bottom: 6px; font-family: inherit;
-    }
-    .vc-reason-input:focus { outline: none; border-color: var(--accent); }
-    .vc-reason-input::placeholder { color: var(--text-dim); }
-
-    .vc-email-output {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
-      padding: 8px 10px; margin-bottom: 6px;
-    }
-    .vc-email-label {
-      font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
-      color: var(--text-dim); margin-bottom: 4px;
-    }
-    .vc-email-subject {
-      font-size: 10.5px; font-weight: 600; color: var(--text); margin-bottom: 6px;
-      padding-bottom: 4px; border-bottom: 1px solid var(--border);
-    }
-    .vc-email-body {
-      font-size: 10px; color: var(--text); line-height: 1.55; white-space: pre-wrap;
-      max-height: 200px; overflow-y: auto;
-    }
-    .vc-email-copy-row {
-      display: flex; gap: 6px; justify-content: flex-end;
-    }
-    .btn-copy-email {
-      font-size: 10px; padding: 3px 10px; border-radius: 4px; border: 1px solid var(--border);
-      background: transparent; color: var(--text-dim); cursor: pointer; transition: all 0.15s;
-    }
-    .btn-copy-email:hover { background: var(--surface); color: var(--text); }
-    .btn-copy-email.copied { color: var(--green); border-color: var(--green); }
-    .vc-generating { font-size: 10px; color: var(--text-dim); padding: 8px 0; text-align: center; }
-
     #summaryGeneratorSection { margin-top: 6px; }
 
     .summary-generate-header {
@@ -694,55 +620,6 @@
     .nudge-panel.pinned .pin-badge { display: block; }
 
     /* ═══════════════════════════════════════════════════════════════════════════
-       IN-PERSON MODE: Mode toggle + Recording controls
-       ═══════════════════════════════════════════════════════════════════════════ */
-
-    /* Mode toggle (Online / In-Person) */
-    .mode-toggle {
-      display: flex; gap: 3px;
-      background: rgba(255,255,255,0.04);
-      border-radius: var(--radius-sm); padding: 3px; margin-bottom: 2px;
-    }
-    .mode-btn {
-      flex: 1; padding: 5px 0; border: none; border-radius: 4px;
-      background: transparent; color: var(--muted);
-      font-size: 10px; cursor: pointer; transition: all 0.15s; font-weight: 500;
-    }
-    .mode-btn:hover { background: rgba(255,255,255,0.06); }
-    .mode-btn.active { background: var(--purple-dim); color: var(--purple); font-weight: 600; }
-
-    /* Recording controls (in-meeting, in-person only) */
-    .recording-header {
-      display: flex; align-items: center; gap: 6px;
-      padding: 6px 0 4px; font-size: 10.5px; color: var(--text-dim);
-    }
-    .record-pulse {
-      width: 7px; height: 7px; border-radius: 50%;
-      background: var(--muted); flex-shrink: 0; transition: background 0.3s;
-    }
-    .record-pulse.active { background: var(--red); animation: pulse 1s infinite; }
-    .btn-record {
-      width: 100%; padding: 7px; border: none; border-radius: var(--radius-sm);
-      background: var(--green-dim); color: var(--green);
-      font-size: 11px; font-weight: 600; cursor: pointer; margin-bottom: 5px;
-      transition: background 0.15s;
-    }
-    .btn-record:hover { background: rgba(52,211,153,0.25); }
-    .btn-record.recording { background: var(--red-dim); color: var(--red); }
-    .btn-record.recording:hover { background: rgba(248,113,113,0.25); }
-
-    /* Live transcript preview box */
-    .live-transcript {
-      max-height: 72px; overflow-y: auto; background: rgba(255,255,255,0.02);
-      border: 1px solid var(--stroke); border-radius: 4px;
-      padding: 4px 6px; font-size: 10px; color: var(--text-dim);
-      line-height: 1.45; margin-bottom: 5px;
-    }
-    .live-transcript::-webkit-scrollbar { width: 3px; }
-    .live-transcript::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
-    .live-transcript .lt-speaker { color: var(--purple); font-weight: 600; }
-
-    /* ═══════════════════════════════════════════════════════════════════════════
        UTILITY
        ═══════════════════════════════════════════════════════════════════════════ */
     .hidden { display: none !important; }
@@ -826,68 +703,6 @@
     .meeting-attendee-count {
       font-size: 9px; color: var(--text-dim); margin-top: 4px;
     }
-
-    /* ═══════════════════════════════════════════════════════════════════════════
-       DOCUMENT CONTEXT PANEL
-       ═══════════════════════════════════════════════════════════════════════════ */
-    .doc-drop-zone {
-      border: 1.5px dashed var(--stroke-hover); border-radius: var(--radius-sm);
-      padding: 12px 10px; text-align: center; cursor: pointer;
-      transition: all 0.15s; color: var(--text-dim); font-size: 10.5px;
-      background: rgba(255,255,255,0.02);
-    }
-    .doc-drop-zone:hover, .doc-drop-zone.drag-over {
-      border-color: var(--purple); background: var(--purple-dim); color: var(--purple);
-    }
-    .doc-drop-zone .drop-icon { font-size: 18px; display: block; margin-bottom: 4px; opacity: 0.6; }
-    .doc-drop-zone .drop-hint { font-size: 9.5px; color: var(--text-dim); margin-top: 3px; }
-    .doc-drop-zone.drag-over .drop-hint { color: var(--purple); }
-
-    .doc-list { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
-    .doc-item {
-      display: flex; align-items: center; gap: 6px;
-      padding: 5px 7px; border-radius: var(--radius-sm);
-      background: rgba(255,255,255,0.03); border: 1px solid var(--stroke);
-    }
-    .doc-icon { font-size: 12px; flex-shrink: 0; }
-    .doc-name { flex: 1; font-size: 10.5px; color: var(--text); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .doc-chunks { font-size: 9px; color: var(--text-dim); white-space: nowrap; }
-    .doc-remove {
-      background: none; border: none; color: var(--text-dim);
-      cursor: pointer; font-size: 13px; padding: 0 2px; line-height: 1;
-      flex-shrink: 0; transition: color 0.15s;
-    }
-    .doc-remove:hover { color: var(--red); }
-
-    .doc-uploading {
-      display: flex; align-items: center; gap: 6px;
-      padding: 6px 7px; font-size: 10px; color: var(--purple);
-    }
-
-    /* Grounding badge — appears on AI response cards */
-    .grounded-badge {
-      display: inline-flex; align-items: center; gap: 3px;
-      font-size: 9px; padding: 2px 7px; border-radius: 999px;
-      background: rgba(96,165,250,0.12); color: var(--blue);
-      border: 1px solid rgba(96,165,250,0.25);
-      white-space: nowrap;
-    }
-
-    /* In-meeting doc search */
-    .doc-search-row {
-      display: flex; gap: 4px; margin-top: 6px;
-    }
-    .doc-search-result {
-      margin-top: 6px; padding: 7px 9px;
-      background: rgba(96,165,250,0.06); border: 1px solid rgba(96,165,250,0.2);
-      border-radius: var(--radius-sm); font-size: 10.5px; color: var(--text);
-      line-height: 1.5;
-    }
-    .doc-search-result .result-source {
-      font-size: 9px; color: var(--blue); font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 3px;
-    }
-    .doc-search-result .result-chunk { color: var(--text); }
   </style>
 </head>
 
@@ -925,147 +740,62 @@
         <!-- Status Banner -->
         <div id="preBanner"></div>
 
-        <!-- Mode Toggle -->
-        <div class="settings-section" id="modeSwitchSection">
-          <h3>Meeting Mode</h3>
-          <div class="mode-toggle">
-            <button class="mode-btn active" id="modeOnlineBtn">🌐 Online</button>
-            <button class="mode-btn" id="modeInPersonBtn">🎤 In-Person</button>
-          </div>
-        </div>
-
         <!-- Connections -->
         <div class="settings-section">
           <h3>Connections</h3>
 
-          <!-- Fireflies (online mode only) -->
-          <div id="ffSection">
-            <div class="connection-row">
-              <span class="dot disconnected" id="ffDot">●</span>
-              <span class="service-name">Fireflies.ai</span>
-              <span class="service-status" id="ffStatus">Not connected</span>
-            </div>
-            <div class="input-row" id="ffInputRow">
-              <input type="password" class="edit-field" id="ffKeyInput" placeholder="Fireflies API Key" />
-              <button class="btn btn-primary btn-small" id="ffConnectBtn">Connect</button>
-            </div>
-            <div class="input-row hidden" id="ffDisconnectRow">
-              <button class="btn btn-undo btn-small" id="ffDisconnectBtn">Disconnect</button>
-            </div>
+          <!-- Fireflies -->
+          <div class="connection-row">
+            <span class="dot disconnected" id="ffDot">●</span>
+            <span class="service-name">Fireflies.ai</span>
+            <span class="service-status" id="ffStatus">Not connected</span>
+          </div>
+          <div class="input-row" id="ffInputRow">
+            <input type="password" class="edit-field" id="ffKeyInput" placeholder="Fireflies API Key" />
+            <button class="btn btn-primary btn-small" id="ffConnectBtn">Connect</button>
+          </div>
+          <div class="input-row hidden" id="ffDisconnectRow">
+            <button class="btn btn-undo btn-small" id="ffDisconnectBtn">Disconnect</button>
           </div>
 
-          <!-- Google Calendar (both modes — needed for push-to-calendar in post-meeting) -->
-          <div id="calSection" style="margin-top:6px">
-            <div class="connection-row">
-              <span class="dot disconnected" id="calDot">●</span>
-              <span class="service-name">Google Calendar</span>
-              <span class="service-status" id="calStatus">Not connected</span>
-            </div>
-            <div id="calInputRow">
-              <div class="input-row">
-                <input type="password" class="edit-field" id="calClientId" placeholder="OAuth Client ID" />
-              </div>
-              <div class="input-row" style="margin-top:3px">
-                <input type="password" class="edit-field" id="calClientSecret" placeholder="OAuth Client Secret" />
-                <button class="btn btn-primary btn-small" id="calConnectBtn">Connect</button>
-              </div>
-            </div>
-            <div class="input-row hidden" id="calDisconnectRow">
-              <button class="btn btn-undo btn-small" id="calDisconnectBtn">Disconnect</button>
-            </div>
+          <!-- Google Calendar -->
+          <div class="connection-row" style="margin-top:6px">
+            <span class="dot disconnected" id="calDot">●</span>
+            <span class="service-name">Google Calendar</span>
+            <span class="service-status" id="calStatus">Not connected</span>
           </div>
-
-          <!-- Gemini (both modes) -->
-          <div style="margin-top:6px">
-            <div class="connection-row">
-              <span class="dot disconnected" id="gemDot">●</span>
-              <span class="service-name">Google Gemini</span>
-              <span class="service-status" id="gemStatus">Not connected</span>
-            </div>
-            <div class="input-row" id="gemInputRow">
-              <input type="password" class="edit-field" id="gemKeyInput" placeholder="Gemini API Key" />
-              <button class="btn btn-primary btn-small" id="gemConnectBtn">Connect</button>
-            </div>
-            <div class="input-row hidden" id="gemDisconnectRow">
-              <button class="btn btn-undo btn-small" id="gemDisconnectBtn">Disconnect</button>
-            </div>
-          </div>
-
-          <!-- Deepgram (in-person mode only) -->
-          <div id="deepgramSection" class="hidden" style="margin-top:6px">
-            <div class="connection-row">
-              <span class="dot disconnected" id="dgDot">●</span>
-              <span class="service-name">Deepgram</span>
-              <span class="service-status" id="dgStatus">Not connected</span>
-            </div>
-            <div class="input-row" id="dgInputRow">
-              <input type="password" class="edit-field" id="dgKeyInput" placeholder="Deepgram API Key" />
-              <button class="btn btn-primary btn-small" id="dgConnectBtn">Connect</button>
-            </div>
-            <div class="input-row hidden" id="dgDisconnectRow">
-              <button class="btn btn-undo btn-small" id="dgDisconnectBtn">Disconnect</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Upcoming Events (online mode only — calendar integration) -->
-        <div class="settings-section" id="upcomingEventsSection">
-          <h3>Upcoming Events</h3>
-          <div id="upcomingEvents"><div class="empty-state">Connect Google Calendar to see events.</div></div>
-        </div>
-
-        <!-- Meeting Participants (in-person mode only) -->
-        <!-- Each participant: speaker ID + real name + email for Calendar push. -->
-        <!-- Stored separately in participants.json — NOT aliases.json. -->
-        <div class="settings-section hidden" id="participantsSection">
-          <h3>Meeting Participants</h3>
-          <p style="font-size:10px;color:var(--text-dim);margin:0 0 6px">
-            Add each person who will be in the room. Deepgram assigns Speaker labels automatically.
-            Ask each participant to say <em>"My name is [NAME] and I am Speaker [X]"</em> at the start of the meeting to confirm their label.
-          </p>
-          <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:4px">
+          <div id="calInputRow">
             <div class="input-row">
-              <input type="text" class="edit-field" id="participantLabel" placeholder="Speaker 0" style="max-width:82px" />
-              <input type="text" class="edit-field" id="participantName" placeholder="Full Name" />
+              <input type="password" class="edit-field" id="calClientId" placeholder="OAuth Client ID" />
             </div>
-            <div class="input-row">
-              <input type="email" class="edit-field" id="participantEmail" placeholder="email@example.com" style="flex:1" />
-              <button class="btn btn-primary btn-small" id="addParticipantBtn">Add</button>
+            <div class="input-row" style="margin-top:3px">
+              <input type="password" class="edit-field" id="calClientSecret" placeholder="OAuth Client Secret" />
+              <button class="btn btn-primary btn-small" id="calConnectBtn">Connect</button>
             </div>
           </div>
-          <div id="participantList" style="margin-top:4px"></div>
+          <div class="input-row hidden" id="calDisconnectRow">
+            <button class="btn btn-undo btn-small" id="calDisconnectBtn">Disconnect</button>
+          </div>
+
+          <!-- Gemini -->
+          <div class="connection-row" style="margin-top:6px">
+            <span class="dot disconnected" id="gemDot">●</span>
+            <span class="service-name">Google Gemini</span>
+            <span class="service-status" id="gemStatus">Not connected</span>
+          </div>
+          <div class="input-row" id="gemInputRow">
+            <input type="password" class="edit-field" id="gemKeyInput" placeholder="Gemini API Key" />
+            <button class="btn btn-primary btn-small" id="gemConnectBtn">Connect</button>
+          </div>
+          <div class="input-row hidden" id="gemDisconnectRow">
+            <button class="btn btn-undo btn-small" id="gemDisconnectBtn">Disconnect</button>
+          </div>
         </div>
 
-        <!-- Name Aliases (online mode only — fuzzy name correction for Fireflies transcripts) -->
-        <div class="settings-section" id="aliasesSection">
-          <h3>Name Aliases</h3>
-          <p style="font-size:10px;color:var(--text-dim);margin:0 0 4px">Map misspellings to correct names for Gemini.</p>
-          <div class="input-row">
-            <input type="text" class="edit-field" id="aliasFrom" placeholder="Misspelling" />
-            <input type="text" class="edit-field" id="aliasTo" placeholder="Correct Name" />
-            <button class="btn btn-primary btn-small" id="aliasAddBtn">Add</button>
-          </div>
-          <table class="alias-table" id="aliasTable">
-            <thead><tr><th>From</th><th>To</th><th></th></tr></thead>
-            <tbody id="aliasBody"></tbody>
-          </table>
-        </div>
-
-        <!-- Document Context -->
-        <div class="settings-section" id="docContextSection">
-          <h3>Document Context</h3>
-          <div
-            id="docDropZone"
-            class="doc-drop-zone"
-            title="Click or drag & drop a PDF, TXT, or MD file"
-          >
-            <span class="drop-icon">📄</span>
-            Drop PDF, TXT, or MD here
-            <div class="drop-hint">or click to browse</div>
-          </div>
-          <input type="file" id="docFileInput" accept=".pdf,.txt,.md" style="display:none" />
-          <div id="docUploadStatus"></div>
-          <div id="docList" class="doc-list"></div>
+        <!-- Upcoming Meetings -->
+        <div class="settings-section">
+          <h3>Upcoming Meetings</h3>
+          <div id="upcomingEvents"><div class="empty-state">Connect Google Calendar to see meetings.</div></div>
         </div>
 
         <!-- Sign Out -->
@@ -1076,35 +806,12 @@
 
       <!-- ═══ IN-MEETING PHASE ═══ -->
       <div class="phase-content" id="phaseInContent">
-
-        <!-- In-Person Recording Controls (hidden in online mode) -->
-        <div id="recordingControls" class="hidden">
-          <div class="section-label" style="padding-top:8px">Recording</div>
-          <div class="recording-header">
-            <span class="record-pulse" id="recordPulse"></span>
-            <span id="recordStatusText">Ready to record</span>
-          </div>
-          <button class="btn-record" id="recordBtn">Start Recording</button>
-          <div class="live-transcript hidden" id="liveTranscript"></div>
-          <div class="sep"></div>
-        </div>
-
         <!-- Agenda Questions -->
         <div class="section-label">Agenda Questions</div>
         <div id="agendaList"></div>
         <div class="footer" id="footerText">Hold ESC to peek. Press ` to trigger nudge.</div>
 
         <div class="sep"></div>
-
-        <!-- In-meeting document search -->
-        <div id="inMeetingDocSearch" class="hidden">
-          <div class="section-label">Search Docs</div>
-          <div class="doc-search-row">
-            <input type="text" class="edit-field" id="docSearchInput" placeholder="Ask about uploaded documents…" style="flex:1" />
-            <button class="btn btn-primary btn-small" id="docSearchBtn">Ask</button>
-          </div>
-          <div id="docSearchResults"></div>
-        </div>
 
         <!-- End meeting button -->
         <button class="btn-end-meeting" id="endMeetingBtn">End Meeting → Post Review</button>
@@ -1183,41 +890,6 @@
           </div>
           <!-- Output -->
           <div id="meetingSummaryOutput"></div>
-        </div>
-
-        <!-- ═══ VC Follow-Up Email Generator ═══ -->
-        <div id="vcEmailSection" class="hidden">
-          <div class="sep"></div>
-          <div class="vc-email-header">
-            <div class="section-label" style="padding:0">📧 VC Follow-Up Email</div>
-          </div>
-
-          <!-- Pursue / Pass toggle -->
-          <div class="vc-decision-row">
-            <button class="vc-decision-btn" id="vcPursueBtn">✅ Pursue</button>
-            <button class="vc-decision-btn" id="vcPassBtn">❌ Pass</button>
-          </div>
-
-          <!-- Reason input (shown after a decision is made) -->
-          <div id="vcReasonSection" class="hidden">
-            <div class="vc-reason-label">Your reason (1–3 sentences)</div>
-            <textarea class="vc-reason-input" id="vcReasonInput" rows="3" placeholder="e.g. The team impressed us and the market timing looks right..."></textarea>
-
-            <!-- Context inputs -->
-            <div class="vc-context-row">
-              <input class="edit-field" type="text" id="vcCompanyName" placeholder="Startup name" />
-              <input class="edit-field" type="text" id="vcFounderName" placeholder="Founder name" />
-            </div>
-            <div class="vc-context-row">
-              <input class="edit-field" type="text" id="vcVcName" placeholder="Your name (VC)" />
-              <input class="edit-field" type="text" id="vcVcFirm" placeholder="Firm name" />
-            </div>
-
-            <button class="btn-generate-email" id="generateEmailBtn">Generate Draft</button>
-          </div>
-
-          <!-- Output area -->
-          <div id="vcEmailOutput"></div>
         </div>
       </div>
     </div>

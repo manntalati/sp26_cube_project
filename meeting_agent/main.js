@@ -11,15 +11,12 @@ let flaskProcess = null;
 // ─────────────────────────────────────────────────────────────────────────────
 function startFlask() {
   const backendDir = path.join(__dirname, 'backend');
-  const backendVenvPython = path.join(backendDir, 'venv', 'bin', 'python3');
-  const projectVenvPython = path.join(__dirname, '..', 'venv', 'bin', 'python3');
+  const venvPython = path.join(backendDir, 'venv', 'bin', 'python3');
   const systemPython = 'python3';
 
-  // Prefer backend venv, then project venv, then system python
+  // Prefer venv python if it exists, otherwise system python
   const fs = require('fs');
-  const pythonPath = fs.existsSync(backendVenvPython)
-    ? backendVenvPython
-    : (fs.existsSync(projectVenvPython) ? projectVenvPython : systemPython);
+  const pythonPath = fs.existsSync(venvPython) ? venvPython : systemPython;
 
   flaskProcess = spawn(pythonPath, ['app.py'], {
     cwd: backendDir,
@@ -112,14 +109,6 @@ function createWindow() {
 
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-
-  // Grant microphone access for in-person mode (getUserMedia in renderer)
-  win.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => {
-    callback(permission === 'media');
-  });
-  win.webContents.session.setPermissionCheckHandler((_wc, permission) => {
-    return permission === 'media';
-  });
 
   win.loadFile('index.html');
 }

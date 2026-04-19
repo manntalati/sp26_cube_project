@@ -12,11 +12,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    min-height: 64px;
-    flex-wrap: wrap;
-    padding-top: 8px;
-    padding-bottom: 8px;
+    height: 64px;
 }
 
 .navbar-brand {
@@ -44,60 +40,6 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-}
-
-.navbar-role-cluster {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    flex: 1 1 auto;
-    justify-content: center;
-    min-width: 0;
-}
-
-.navbar-role-label {
-    font-size: 0.65rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--color-text-muted);
-    white-space: nowrap;
-}
-
-.role-pill-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-    padding: 0.3rem;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-}
-
-.role-pill {
-    padding: 0.4rem 0.65rem;
-    border-radius: 7px;
-    border: none;
-    background: transparent;
-    color: #94a3b8;
-    font-size: 0.78rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-family: inherit;
-    white-space: nowrap;
-}
-
-.role-pill:hover {
-    color: #e2e8f0;
-    background: rgba(255, 255, 255, 0.06);
-}
-
-.role-pill.active {
-    background: rgba(99, 102, 241, 0.18);
-    color: #c4b5fd;
-    border: 1px solid rgba(99, 102, 241, 0.35);
 }
 
 .navbar-right {

@@ -16,7 +16,6 @@ def fetch_transcripts():
         return jsonify({"success": True, "transcripts": DEMO_TRANSCRIPTS})
 
     api_key = CONNECTED_ACCOUNTS["fireflies"]["api_key"]
-    gemini_key = (CONNECTED_ACCOUNTS.get("gemini") or {}).get("api_key")
     success, result = get_transcripts(api_key)
 
     if success:
@@ -28,7 +27,7 @@ def fetch_transcripts():
                 continue
             rec = get_analysis_record(transcript_id)
             if rec.get("status") == "not_queued":
-                enqueue_analysis(transcript_id, api_key, gemini_api_key=gemini_key)
+                enqueue_analysis(transcript_id, api_key)
 
         return jsonify({"success": True, "transcripts": transcripts})
     else:
@@ -39,10 +38,10 @@ def fetch_transcripts():
 def fetch_transcript_actions(transcript_id):
     if not is_connected("fireflies"):
         return jsonify({"success": False, "error": "Fireflies account not connected"}), 401
-
+        
     api_key = CONNECTED_ACCOUNTS["fireflies"]["api_key"]
     success, result = get_transcript_action_items(api_key, transcript_id)
-
+    
     if success:
         return jsonify({"success": True, "action_items": result})
     else:

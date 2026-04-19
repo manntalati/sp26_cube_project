@@ -5,7 +5,7 @@ from queue import Queue, Empty
 from typing import Any, Dict, Optional, Tuple
 
 from services.fireflies_service import get_transcript_full
-from services.gemini_service import analyze_action_items, normalize_agent_role, DEFAULT_AGENT_ROLE
+from services.gemini_service import analyze_action_items
 
 
 @dataclass(frozen=True)
@@ -13,7 +13,6 @@ class AnalysisJob:
     transcript_id: str
     fireflies_api_key: str
     gemini_api_key: str
-    role: str = DEFAULT_AGENT_ROLE
 
 
 # transcript_id -> record
@@ -40,20 +39,13 @@ def get_analysis_record(transcript_id: str) -> Dict[str, Any]:
                 "status": "not_queued",  # not_queued | queued | processing | ready | error
                 "items": None,
                 "error": None,
-                "agent_role": None,
                 "updated_at_ms": _now_ms(),
             }
             ANALYSIS_STORE[transcript_id] = rec
         return dict(rec)
 
 
-def enqueue_analysis(
-    transcript_id: str,
-    fireflies_api_key: str,
-    gemini_api_key: str = None,
-    force: bool = False,
-    role: str = None,
-) -> Tuple[bool, Dict[str, Any]]:
+def enqueue_analysis(transcript_id: str, fireflies_api_key: str, gemini_api_key: str = None, force: bool = False) -> Tuple[bool, Dict[str, Any]]:
     """
     Enqueues an analysis job if not already ready/processing/queued.
     If force=True, re-enqueues even if 'ready'.
@@ -63,8 +55,6 @@ def enqueue_analysis(
         return False, {"error": "transcript_id is required"}
     if not fireflies_api_key:
         return False, {"error": "fireflies_api_key is required"}
-
-    normalized_role = normalize_agent_role(role)
 
     with _lock:
         rec = ANALYSIS_STORE.get(transcript_id)
@@ -78,18 +68,10 @@ def enqueue_analysis(
             "status": "queued",
             "items": None,
             "error": None,
-            "agent_role": None,
             "updated_at_ms": _now_ms(),
         }
 
-    _queue.put(
-        AnalysisJob(
-            transcript_id=transcript_id,
-            fireflies_api_key=fireflies_api_key,
-            gemini_api_key=gemini_api_key or "",
-            role=normalized_role,
-        )
-    )
+    _queue.put(AnalysisJob(transcript_id=transcript_id, fireflies_api_key=fireflies_api_key, gemini_api_key=gemini_api_key or ""))
     return True, get_analysis_record(transcript_id)
 
 
@@ -135,18 +117,13 @@ def _worker_loop() -> None:
             transcript_text = ff_result.get("transcript_text", "")
             action_items = ff_result.get("action_items", [])
 
-            ok, gemini_result = analyze_action_items(
-                transcript_text,
-                action_items,
-                api_key=job.gemini_api_key or None,
-                role=job.role,
-            )
+            ok, gemini_result = analyze_action_items(transcript_text, action_items, api_key=job.gemini_api_key or None)
             if not ok:
                 _set_record(transcript_id, status="error", error=f"Gemini analysis failed: {gemini_result}", items=None)
                 _queue.task_done()
                 continue
 
-            _set_record(transcript_id, status="ready", items=gemini_result, error=None, agent_role=job.role)
+            _set_record(transcript_id, status="ready", items=gemini_result, error=None)
             _queue.task_done()
         except Exception as e:
             _set_record(transcript_id, status="error", error=f"Unhandled internal error: {str(e)}", items=None)

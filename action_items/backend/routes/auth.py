@@ -5,23 +5,7 @@ from services.gemini_service import validate_gemini_key
 import os
 import json
 import tempfile
-
-try:
-    import fcntl
-
-    def _flock_lock(f, exclusive: bool) -> None:
-        fcntl.flock(f, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
-
-    def _flock_unlock(f) -> None:
-        fcntl.flock(f, fcntl.LOCK_UN)
-
-except ImportError:
-    # Windows has no fcntl; skip cross-process locking for the dev OAuth state file.
-    def _flock_lock(f, exclusive: bool) -> None:
-        pass
-
-    def _flock_unlock(f) -> None:
-        pass
+import fcntl
 
 # Path to the file used to persist pending OAuth flows across Werkzeug processes
 _OAUTH_STATE_FILE = os.path.join(tempfile.gettempdir(), 'action_item_agent_oauth_flows.json')
@@ -30,9 +14,9 @@ def _load_oauth_flows():
     """Read persisted OAuth flow state from disk."""
     try:
         with open(_OAUTH_STATE_FILE, 'r') as f:
-            _flock_lock(f, exclusive=False)
+            fcntl.flock(f, fcntl.LOCK_SH)
             data = json.load(f)
-            _flock_unlock(f)
+            fcntl.flock(f, fcntl.LOCK_UN)
             return data
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
@@ -40,9 +24,9 @@ def _load_oauth_flows():
 def _save_oauth_flows(flows):
     """Write OAuth flow state to disk atomically."""
     with open(_OAUTH_STATE_FILE, 'w') as f:
-        _flock_lock(f, exclusive=True)
+        fcntl.flock(f, fcntl.LOCK_EX)
         json.dump(flows, f)
-        _flock_unlock(f)
+        fcntl.flock(f, fcntl.LOCK_UN)
 
 def _pop_oauth_flow(state):
     """Retrieve and remove a pending OAuth flow entry by state key."""
